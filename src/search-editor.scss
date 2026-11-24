@@ -27,10 +27,6 @@ $search-error-color: #d60024;
 	}
 }
 
-.list-toolbar[data-filter-row] > .list-filter > .list-search-editor {
-	margin-inline: auto;
-}
-
 ::highlight(list-search-value) {
 	background-color: #d5edff;
 	color: #12365b;
