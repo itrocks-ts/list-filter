@@ -14,7 +14,7 @@ export function editColumnCriterion(
 	const expression  = search.expression ?? search.partial
 	const field       = search.criteria.find(criterion => pathOf(criterion.field) === path)
 	const original    = field ? text.slice(field.fieldStart, field.fieldEnd) : ''
-	const replacement = value.trim() ? formatColumnCriterion(name, value, emptyAlias, original) : ''
+	const replacement = value ? formatColumnCriterion(name, value, emptyAlias, original) : ''
 	const matches     = expression ? matchingSubtrees(expression, path, pathOf) : []
 	const trailing    = search.criteria.find(criterion =>
 		criterion.start >= (expression?.end ?? 0) && pathOf(criterion.field) === path

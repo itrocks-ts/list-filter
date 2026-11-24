@@ -98,11 +98,16 @@ test('uses the column search semantics in a group and applies synchronized value
 
 test('summarises plain column values without parentheses and preserves column search semantics', () => {
 	for (const [value, text] of [
+		[' ', 'titre:" "'],
+		[' Autant', 'titre:" Autant"'],
 		['Alien', 'titre:Alien'],
 		['Alien Resurrection', 'titre:"Alien Resurrection"'],
+		['Autant ', 'titre:"Autant "'],
+		['Autant e', 'titre:"Autant e"'],
 		['=Alien', 'titre:=Alien'],
 		['Alien*', 'titre:(Alien*)'],
 		['(Alien | Aliens) & !vide', 'titre:((Alien | Aliens) & !vide)'],
+		[' !vide', 'titre:( !vide)'],
 		['vide', 'titre:(vide)']
 	]) {
 		const filter = new SearchFilter([{ name: 'title' }], new ListQuery())
@@ -114,4 +119,10 @@ test('summarises plain column values without parentheses and preserves column se
 		filter.getParams({ data: { listQuery: text, listQuerySync: '1' } }, Film)
 		assert.deepEqual(filter.searchObject(Film)[AND][0].title, criterion)
 	}
+})
+
+test('preserves spaces when combining multiple criteria in one column', () => {
+	const expression = parseSearch('titre:"Autant " | titre:" Autres"').expression
+	const projected  = columnProjection(expression, field => resolveSearchField(Film, field).path)
+	assert.equal(projected.get('title'), '"Autant " | " Autres"')
 })

@@ -3,7 +3,7 @@ import { formatSearchField } from './syntax.js'
 import { parseSearch }       from './syntax.js'
 import type { SearchNode }   from './syntax.js'
 
-type Clause = { operator?: 'AND' | 'OR' | 'column', text: string }
+type Clause = { operator?: 'AND' | 'OR' | 'column', quoted?: string, text: string }
 type PathOf = (field: string) => string
 
 function clause(node: SearchNode, emptyAliases: readonly string[]): Clause | undefined
@@ -23,7 +23,9 @@ function clause(node: SearchNode, emptyAliases: readonly string[]): Clause | und
 			: { text: node.column }
 	}
 	const text = columnValue(node, emptyAliases)
-	if (text !== undefined) return { text }
+	if (text === undefined) return
+	// A standalone column value keeps its spaces. A combined expression needs quotes around edge spaces.
+	return text.trim() === text ? { text } : { quoted: quoteValue(text), text }
 }
 
 function collect(
@@ -66,7 +68,8 @@ export function columnProjection(
 function columnValue({ end, operator, value, valueEnd }: Criterion, emptyAliases: readonly string[]): string | undefined
 {
 	const trimmed = value.trim()
-	const empty   = emptyAliases.includes(trimmed.toLocaleLowerCase())
+	const alias   = operator === ':' ? trimmed.replace(/^(?:!=|<>|!)\s*/, '') : trimmed
+	const empty   = emptyAliases.includes(alias.toLocaleLowerCase())
 	if (operator === ':' && (empty || /[-*?%_\\]/.test(value))) return
 	if (operator === '!=' && (empty || /[*?]/.test(value))) return
 	if (operator !== ':' && trimmed !== value) return
@@ -80,9 +83,7 @@ function columnValue({ end, operator, value, valueEnd }: Criterion, emptyAliases
 		prefix += ' '
 	}
 	const quotedEmpty = !value && end > valueEnd
-	const escaped     = quotedEmpty || /[,|&+()"\\]/.test(value) || trimmed !== value
-		? '"' + value.replace(/[\\"]/g, '\\$&') + '"'
-		: value
+	const escaped     = quotedEmpty || /[,|&+()"\\]/.test(value) ? quoteValue(value) : value
 	return prefix + escaped
 }
 
@@ -93,7 +94,7 @@ function combine(operands: Clause[], operator: 'AND' | 'OR'): Clause
 	const text = operands.map(operand =>
 		(operand.operator === 'column' || (operator === 'AND' && operand.operator === 'OR'))
 			? `(${operand.text})`
-			: operand.text
+			: (operand.quoted ?? operand.text)
 	).join(separator)
 	return { operator, text }
 }
@@ -102,9 +103,10 @@ export function formatColumnCriterion(field: string, value: string, emptyAlias =
 {
 	const prefix       = formatSearchField(field, original) + ':'
 	const emptyAliases = ['empty', emptyAlias.toLocaleLowerCase()]
-	const quoted       = '"' + value.replace(/[\\"]/g, '\\$&') + '"'
+	const quoted       = quoteValue(value)
+	const operands     = /\s/.test(value) ? [quoted, value] : [value, quoted]
 	// Use the short form only when the general editor projects it back to the same column value.
-	for (const operand of [value, quoted]) {
+	for (const operand of operands) {
 		const text = prefix + operand
 		const node = parseSearch(text).expression
 		if (node && 'field' in node && node.column === undefined && columnValue(node, emptyAliases) === value) {
@@ -112,6 +114,11 @@ export function formatColumnCriterion(field: string, value: string, emptyAlias =
 		}
 	}
 	return `${prefix}(${value})`
+}
+
+function quoteValue(value: string): string
+{
+	return '"' + value.replace(/[\\"]/g, '\\$&') + '"'
 }
 
 export function singleField(node: SearchNode, pathOf: PathOf): string | undefined
