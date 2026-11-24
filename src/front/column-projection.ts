@@ -1,5 +1,7 @@
-import type { Criterion }   from './syntax.js'
-import type { SearchNode }  from './syntax.js'
+import type { Criterion }    from './syntax.js'
+import { formatSearchField } from './syntax.js'
+import { parseSearch }       from './syntax.js'
+import type { SearchNode }   from './syntax.js'
 
 type Clause = { operator?: 'AND' | 'OR' | 'column', text: string }
 type PathOf = (field: string) => string
@@ -94,6 +96,22 @@ function combine(operands: Clause[], operator: 'AND' | 'OR'): Clause
 			: operand.text
 	).join(separator)
 	return { operator, text }
+}
+
+export function formatColumnCriterion(field: string, value: string, emptyAlias = 'empty', original = ''): string
+{
+	const prefix       = formatSearchField(field, original) + ':'
+	const emptyAliases = ['empty', emptyAlias.toLocaleLowerCase()]
+	const quoted       = '"' + value.replace(/[\\"]/g, '\\$&') + '"'
+	// Use the short form only when the general editor projects it back to the same column value.
+	for (const operand of [value, quoted]) {
+		const text = prefix + operand
+		const node = parseSearch(text).expression
+		if (node && 'field' in node && node.column === undefined && columnValue(node, emptyAliases) === value) {
+			return text
+		}
+	}
+	return `${prefix}(${value})`
 }
 
 export function singleField(node: SearchNode, pathOf: PathOf): string | undefined

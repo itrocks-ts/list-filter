@@ -43,7 +43,7 @@ function activate(toolbar: HTMLElement): void
 	const columns = new ColumnFilters(form, pathOf, toolbar.dataset.listEmptyAlias, (path, value) => {
 		const text   = editor.textContent ?? ''
 		const origin = (columnDraft?.path === path && columnDraft.text === text) ? columnDraft.origin : text
-		const next   = editColumnCriterion(origin, path, names.get(path) ?? path, value, pathOf)
+		const next   = editColumnCriterion(origin, path, names.get(path) ?? path, value, pathOf, toolbar.dataset.listEmptyAlias)
 		columnDraft  = { origin, path, text: next }
 		if (next !== text) {
 			editor.textContent = next

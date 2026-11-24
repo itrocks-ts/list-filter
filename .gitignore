@@ -7,3 +7,5 @@
 *.d.ts
 *.js
 *.map
+
+!test/fixtures/*.d.ts

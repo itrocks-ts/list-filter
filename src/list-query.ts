@@ -7,7 +7,8 @@ import { AND }                 from '@itrocks/sql-functions'
 import { OR }                  from '@itrocks/sql-functions'
 import type { SearchType }     from '@itrocks/storage'
 import { lang }                from '@itrocks/translate'
-import { formatSearchField }   from './front/syntax'
+import { tr }                  from '@itrocks/translate'
+import { formatColumnCriterion } from './front/column-projection'
 import { parseSearch }         from './front/syntax'
 import type { SearchNode }     from './front/syntax'
 import { resolveSearchField }  from './search-field'
@@ -112,10 +113,11 @@ export class SearchFilter<T extends object> extends Filter<T>
 
 	queryText(type: Type): string
 	{
-		const columns = Object.entries(this.search).flatMap(([path, value]) => {
+		const emptyAlias = tr('empty')
+		const columns    = Object.entries(this.search).flatMap(([path, value]) => {
 			if (value === '') return []
 			const field = resolveSearchField(type, path, false)?.field ?? path
-			return [`${formatSearchField(field)}:(${value})`]
+			return [formatColumnCriterion(field, value, emptyAlias)]
 		})
 		const general = this.query.displayText(type)
 		const root    = parseSearch(general).expression

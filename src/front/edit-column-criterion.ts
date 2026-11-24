@@ -1,18 +1,20 @@
-import { singleField }      from './column-projection.js'
-import { formatSearchField } from './syntax.js'
-import { parseSearch }       from './syntax.js'
-import type { SearchNode }   from './syntax.js'
+import { formatColumnCriterion } from './column-projection.js'
+import { singleField }           from './column-projection.js'
+import { parseSearch }           from './syntax.js'
+import type { SearchNode }       from './syntax.js'
 
 type Fragment = { operator?: 'AND' | 'OR', parenthesised: boolean, text: string }
 type PathOf = (field: string) => string
 
-export function editColumnCriterion(text: string, path: string, name: string, value: string, pathOf: PathOf): string
+export function editColumnCriterion(
+	text: string, path: string, name: string, value: string, pathOf: PathOf, emptyAlias?: string
+): string
 {
 	const search      = parseSearch(text)
 	const expression  = search.expression ?? search.partial
 	const field       = search.criteria.find(criterion => pathOf(criterion.field) === path)
 	const original    = field ? text.slice(field.fieldStart, field.fieldEnd) : ''
-	const replacement = value.trim() ? `${formatSearchField(name, original)}:(${value})` : ''
+	const replacement = value.trim() ? formatColumnCriterion(name, value, emptyAlias, original) : ''
 	const matches     = expression ? matchingSubtrees(expression, path, pathOf) : []
 	const trailing    = search.criteria.find(criterion =>
 		criterion.start >= (expression?.end ?? 0) && pathOf(criterion.field) === path

@@ -5,6 +5,8 @@ import { test }          from 'node:test'
 const require = createRequire(import.meta.url)
 const { trInit, translations, trWithLanguage } = require('@itrocks/translate')
 const { AND, OR } = require('@itrocks/sql-functions')
+const { columnProjection } = require('../cjs/front/column-projection.js')
+const { parseSearch } = require('../cjs/front/syntax.js')
 const { ListQuery, SearchFilter } = require('../cjs/list-query.js')
 const { searchCaret } = require('../cjs/search-text.js')
 const { resolveSearchField } = require('../cjs/search-field.js')
@@ -12,7 +14,7 @@ const { Film } = require('./fixtures/search-fields.cjs')
 
 trInit('fr-FR')
 for (const [english, french] of [
-	['added', 'ajouté'], ['name', 'nom'], ['original title', 'titre original'], ['title', 'titre'],
+	['added', 'ajouté'], ['empty', 'vide'], ['name', 'nom'], ['original title', 'titre original'], ['title', 'titre'],
 	['watch count', 'nombre de vues']
 ]) {
 	translations.set(english, french)
@@ -92,4 +94,24 @@ test('uses the column search semantics in a group and applies synchronized value
 	assert.deepEqual(alternatives[0].title.operands.map(operand => operand.build().values[0]), ['A%', 'B%'])
 	assert.equal(alternatives[1][AND][0].title.value, 'Other')
 	assert.equal(alternatives[1][AND][1].watchCount.value, '8')
+})
+
+test('summarises plain column values without parentheses and preserves column search semantics', () => {
+	for (const [value, text] of [
+		['Alien', 'titre:Alien'],
+		['Alien Resurrection', 'titre:"Alien Resurrection"'],
+		['=Alien', 'titre:=Alien'],
+		['Alien*', 'titre:(Alien*)'],
+		['(Alien | Aliens) & !vide', 'titre:((Alien | Aliens) & !vide)'],
+		['vide', 'titre:(vide)']
+	]) {
+		const filter = new SearchFilter([{ name: 'title' }], new ListQuery())
+		filter.unserialize({ title: value })
+		assert.equal(filter.queryText(Film), text)
+		const projected = columnProjection(parseSearch(text).expression, field => resolveSearchField(Film, field).path, 'vide')
+		assert.equal(projected.get('title'), value)
+		const criterion = filter.searchObject(Film).title
+		filter.getParams({ data: { listQuery: text, listQuerySync: '1' } }, Film)
+		assert.deepEqual(filter.searchObject(Film)[AND][0].title, criterion)
+	}
 })
