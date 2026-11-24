@@ -23,7 +23,9 @@ $search-error-color: #d60024;
 		line-height: 2.25rem;
 		min-height: 1lh;
 		overflow-x: auto;
+		overflow-y: hidden;
 		padding-inline-end: 2ch;
+		scrollbar-width: none;
 		white-space: pre;
 
 		&[data-filled='false']:not(:focus) {

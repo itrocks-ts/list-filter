@@ -13,6 +13,49 @@ type ColumnDraft = { origin: string, path: string, text: string }
 
 const editors = new WeakMap<HTMLElement, () => void>()
 
+function placeCaret(editor: HTMLElement, offset: number): void
+{
+	const selection = document.getSelection()
+	if (!selection) return
+	selection.collapse(...textPoint(editor, offset))
+	if (!selection.rangeCount || editor.scrollWidth <= editor.clientWidth) return
+
+	const caret = selection.getRangeAt(0).getBoundingClientRect()
+	const left  = editor.getBoundingClientRect().left + editor.clientLeft
+	const right = left + editor.clientWidth
+	if (caret.left < left) {
+		editor.scrollLeft += Math.floor(caret.left - left)
+	}
+	else if (caret.right >= right) {
+		editor.scrollLeft += Math.ceil(caret.right - right + 1)
+	}
+}
+
+function readEditorText(editor: HTMLElement): string
+{
+	const original = editor.textContent ?? ''
+	const text     = singleLine(original)
+	if (text === original) return text
+
+	// Normalise saved text and edits the browser did not let us intercept.
+	const selection = document.getSelection()
+	const anchor    = selection?.anchorNode && textOffset(editor, selection.anchorNode, selection.anchorOffset)
+	const focus     = selection?.focusNode && textOffset(editor, selection.focusNode, selection.focusOffset)
+	editor.textContent = text
+	if (selection && typeof anchor === 'number' && typeof focus === 'number') {
+		selection.setBaseAndExtent(
+			...textPoint(editor, singleLine(original.slice(0, anchor)).length),
+			...textPoint(editor, singleLine(original.slice(0, focus)).length)
+		)
+	}
+	return text
+}
+
+function singleLine(text: string): string
+{
+	return text.replace(/[\r\n\u2028\u2029]+/g, ' ')
+}
+
 function activate(toolbar: HTMLElement): void
 {
 	const refresh = editors.get(toolbar)
@@ -53,8 +96,8 @@ function activate(toolbar: HTMLElement): void
 		}
 	})
 
-	const readSearch = () => {
-		const text   = editor.textContent ?? ''
+	const readSearch = (composing = false) => {
+		const text   = composing ? (editor.textContent ?? '') : readEditorText(editor)
 		const search = parseSearch(text)
 		editor.dataset.filled = String(!!text)
 		editor.setAttribute('aria-invalid', String(search.error !== undefined))
@@ -120,7 +163,7 @@ function activate(toolbar: HTMLElement): void
 		}
 		editor.dataset.filled = 'true'
 		editor.focus()
-		window.getSelection()?.collapse(editor, editor.childNodes.length)
+		placeCaret(editor, editor.textContent?.length ?? 0)
 		readSearch()
 	})
 	editor.addEventListener('input', event => {
@@ -129,7 +172,7 @@ function activate(toolbar: HTMLElement): void
 			columnDraft = undefined
 			columns.clearEdits()
 		}
-		const { search, text } = readSearch()
+		const { search, text } = readSearch(userInput && event.isComposing)
 		correction.update(text, search, userInput ? event.inputType : '', userInput)
 	})
 	editor.addEventListener('compositionstart', () => {
@@ -144,36 +187,52 @@ function activate(toolbar: HTMLElement): void
 		if (!event.clipboardData) return
 		event.preventDefault()
 		const selection = document.getSelection()
-		const text      = event.clipboardData.getData('text/plain').replace(/[\r\n]+/g, ' ')
+		const text      = singleLine(event.clipboardData.getData('text/plain'))
 		correction.beforeInput(selection?.rangeCount ? selection.getRangeAt(0) : undefined)
 		// Keep the insertion in the browser's undo history.
 		document.execCommand('insertText', false, text)
 	})
 	editor.addEventListener('beforeinput', event => {
-		if (!event.isComposing && ['insertLineBreak', 'insertParagraph'].includes(event.inputType)) {
+		if (event.inputType === 'insertLineBreak' || event.inputType === 'insertParagraph') {
 			event.preventDefault()
-			form.requestSubmit(submit)
+			if (!event.isComposing && !correction.composing) {
+				form.requestSubmit(submit)
+			}
 			return
 		}
-		correction.beforeInput(event.getTargetRanges()[0])
+		const target = event.getTargetRanges()[0]
+		correction.beforeInput(target)
+		const input = event.data ?? event.dataTransfer?.getData('text/plain')
+		if (event.isComposing || !event.cancelable || input == null) return
+		const text = singleLine(input)
+		if (text === input) return
+
+		event.preventDefault()
+		if (target) {
+			document.getSelection()?.setBaseAndExtent(
+				target.startContainer, target.startOffset, target.endContainer, target.endOffset
+			)
+		}
+		document.execCommand('insertText', false, text)
 	})
 	editable.onKeyDown = function (event: KeyboardEvent): void {
 		if (event.key !== 'Enter') {
 			onKeyDown.call(this, event)
 			return
 		}
-		if (event.isComposing || event.keyCode === 229) return
+		if (event.isComposing || correction.composing || event.keyCode === 229) return
 		event.preventDefault()
 		form.requestSubmit(submit)
 	}
 	const caret = toolbar.dataset.focusCaret
 	delete toolbar.dataset.focusCaret
-	if (caret) {
+	const offset = caret ? singleLine((editor.textContent ?? '').slice(0, Number(caret))).length : undefined
+	readSearch()
+	if (offset !== undefined) {
 		editor.dataset.filled = 'true'
 		editor.focus()
-		document.getSelection()?.collapse(...textPoint(editor, Number(caret)))
+		placeCaret(editor, offset)
 	}
-	readSearch()
 }
 
 build<HTMLElement, 'call'>({ callback: activate, priority: 2000, selector: '.list-search-editor' })
@@ -187,6 +246,6 @@ build<HTMLElement, 'click'>('.list-filter', 'click', function (event) {
 	editor.dataset.filled = 'true'
 	editor.focus({ preventScroll: true })
 	const offset = (event.clientX <= editor.getBoundingClientRect().left) ? 0 : (editor.textContent?.length ?? 0)
-	document.getSelection()?.collapse(...textPoint(editor, offset))
+	placeCaret(editor, offset)
 	editors.get(toolbar)?.()
 })
