@@ -4,6 +4,7 @@ import { ColumnFilters }       from './column-filters.js'
 import { editColumnCriterion } from './edit-column-criterion.js'
 import { FieldCorrection }     from './field-correction.js'
 import { highlightSearch }     from './highlight.js'
+import { selectCriteria }      from './select-criteria.js'
 import { parseSearch }         from './syntax.js'
 import { textOffset }          from './text-range.js'
 import { textPoint }           from './text-range.js'
@@ -35,6 +36,7 @@ function activate(toolbar: HTMLElement): void
 	let synchronized = false
 
 	editor.enterKeyHint = 'search'
+	selectCriteria(editor)
 	for (const [field, path] of aliases) {
 		if (!names.has(path)) {
 			names.set(path, field)

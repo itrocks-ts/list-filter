@@ -66,5 +66,5 @@
 		"build:front": "tsc -p src/front/tsconfig.json",
 		"test": "npm run build && node --test --test-isolation=none test/*.test.mjs"
 	},
-	"version": "0.1.0"
+	"version": "0.2.0"
 }
