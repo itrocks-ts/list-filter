@@ -175,3 +175,16 @@ function activate(toolbar: HTMLElement): void
 }
 
 build<HTMLElement, 'call'>({ callback: activate, priority: 2000, selector: '.list-search-editor' })
+
+build<HTMLElement, 'click'>('.list-filter', 'click', function (event) {
+	if (event.defaultPrevented || event.button !== 0 || !(event.target instanceof Element)) return
+	const toolbar = this.querySelector<HTMLElement>(':scope > .list-search-editor')
+	if (!toolbar || event.target.closest('.list-filter-icon, .list-filter-text')) return
+	const editor = toolbar.querySelector<HTMLElement>('.list-filter-text')!
+
+	editor.dataset.filled = 'true'
+	editor.focus({ preventScroll: true })
+	const offset = (event.clientX <= editor.getBoundingClientRect().left) ? 0 : (editor.textContent?.length ?? 0)
+	document.getSelection()?.collapse(...textPoint(editor, offset))
+	editors.get(toolbar)?.()
+})

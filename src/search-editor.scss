@@ -2,14 +2,26 @@ $search-error-color: #d60024;
 
 .list-search-editor {
 	align-items: center;
+	align-self: stretch;
 	display: flex;
 	gap: .35em;
 	max-width: 100%;
 	min-width: 0;
 	width: max-content;
 
-	> .list-filter-text {
+	> .list-filter-text[contenteditable] {
+		--search-underline-color: #888;
+
+		align-content: center;
+		align-self: stretch;
+		background-image: repeating-linear-gradient(90deg, var(--search-underline-color) 0 1px, transparent 1px 2px);
+		background-position: 0 calc(50% + .65em);
+		background-repeat: no-repeat;
+		background-size: 100% 1px;
+		border-bottom: 0;
 		flex: 1;
+		line-height: 2.25rem;
+		min-height: 1lh;
 		overflow-x: auto;
 		padding-inline-end: 2ch;
 		white-space: pre;
@@ -20,7 +32,7 @@ $search-error-color: #d60024;
 		}
 
 		&:focus {
-			border-bottom-color: #12365b;
+			--search-underline-color: #12365b;
 			min-width: 8ch;
 			outline: none;
 		}
