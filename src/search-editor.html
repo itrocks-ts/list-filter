@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<link href="../search-editor.css" rel="stylesheet">
+	<meta charset="utf-8">
+	<script src="../build.js" type="module"></script>
+	<title>List search</title>
+</head>
+<body>
+<!--BEGIN-->
+
+	<div class="list-search-editor" data-focus-caret="{focusCaret}"
+		data-list-empty-alias="{emptyAlias}" data-list-query-paths="{paths}">
+		<button aria-label="Edit or apply list filters" class="list-filter-icon" type="button"></button>
+		<div aria-label="List filters" autocapitalize="off" class="list-filter-text" contenteditable="plaintext-only"
+			data-filled="{hasQuery}" role="textbox" spellcheck="false">{query}</div>
+	</div>
+
+<!--END-->
+</body>
+</html>

@@ -1,0 +1,70 @@
+{
+	"author": {
+		"name": "Baptiste Pillot",
+		"email": "baptiste@pillot.fr"
+	},
+	"dependencies": {
+		"@itrocks/action-request": "latest",
+		"@itrocks/build": "latest",
+		"@itrocks/class-type": "latest",
+		"@itrocks/contenteditable": "latest",
+		"@itrocks/list": "latest",
+		"@itrocks/property-view": "latest",
+		"@itrocks/reflect": "latest",
+		"@itrocks/reflect-path": "latest",
+		"@itrocks/request-response": "latest",
+		"@itrocks/sql-functions": "latest",
+		"@itrocks/storage": "latest",
+		"@itrocks/translate": "latest",
+		"fastest-levenshtein": "^1.0"
+	},
+	"description": "Editable search filters for object lists",
+	"devDependencies": {
+		"@itrocks/class-file": "latest",
+		"@types/node": "^24.10",
+		"sass": "^1.95",
+		"typescript": "^7.0"
+	},
+	"engines": {
+		"node": ">=24"
+	},
+	"exports": {
+		".": "./cjs/list-filter.js",
+		"./syntax": "./cjs/front/syntax.js",
+		"./syntax.js": "./syntax.js"
+	},
+	"files": [
+		"config.yaml",
+		"LICENSE",
+		"README.md",
+		"cjs",
+		"*.css",
+		"*.d.ts",
+		"*.js",
+		"!*.map"
+	],
+	"homepage": "https://it.rocks",
+	"keywords": [
+		"backend",
+		"filter",
+		"front-end",
+		"it.rocks",
+		"list",
+		"search",
+		"syntax"
+	],
+	"license": "ISC",
+	"name": "@itrocks/list-filter",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/itrocks-ts/list-filter.git"
+	},
+	"scripts": {
+		"build": "npm run build:cjs && npm run build:css && npm run build:front",
+		"build:cjs": "tsc && node -e \"const fs=require('node:fs'),path=require('node:path');for(const file of fs.readdirSync('src'))if(file.endsWith('.html'))fs.copyFileSync(path.join('src',file),path.join('cjs',file))\"",
+		"build:css": "sass --no-source-map src/search-editor.scss:search-editor.css",
+		"build:front": "tsc -p src/front/tsconfig.json",
+		"test": "npm run build && node --test --test-isolation=none test/*.test.mjs"
+	},
+	"version": "0.0.1"
+}

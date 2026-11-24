@@ -1,0 +1,3 @@
+compose:
+  '@itrocks/list': '@itrocks/list-filter'
+  '@itrocks/list:List': '@itrocks/list-filter:ListWithFilters'
