@@ -69,7 +69,7 @@ function activate(toolbar: HTMLElement): void
 	const editor    = toolbar.querySelector<HTMLElement>('.list-filter-text')!
 	const query     = form.querySelector<HTMLInputElement>('input[name="listQuery"]')!
 	const submit    = form.querySelector<HTMLInputElement>('.search-submit')!
-	const trigger   = toolbar.querySelector<HTMLButtonElement>('.list-filter-icon')!
+	const trigger   = toolbar.parentElement!.querySelector<HTMLButtonElement>('button.list-filter-icon')!
 	const aliases   = new Map<string, string>(JSON.parse(decodeURIComponent(toolbar.dataset.listQueryPaths ?? '[]')))
 	const names     = new Map<string, string>()
 	const editable  = new ContentEditable(editor)
