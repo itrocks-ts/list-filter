@@ -121,7 +121,7 @@ function activate(toolbar: HTMLElement): void
 			correction.cancel()
 			return
 		}
-		if (event.submitter && !event.submitter.matches('.search-submit, .search-menu button.search')) return
+		if (event.submitter && !event.submitter.matches('.search-submit')) return
 		const { search, text } = readSearch()
 		if (search.incomplete || search.error !== undefined) {
 			editor.setAttribute('aria-invalid', 'true')
@@ -240,7 +240,7 @@ build<HTMLElement, 'call'>({ callback: activate, priority: 2000, selector: '.lis
 build<HTMLElement, 'click'>('.list-filter', 'click', function (event) {
 	if (event.defaultPrevented || event.button !== 0 || !(event.target instanceof Element)) return
 	const toolbar = this.querySelector<HTMLElement>(':scope > .list-search-editor')
-	if (!toolbar || event.target.closest('.list-filter-icon, .list-filter-text')) return
+	if (!toolbar || event.target.closest('button, .list-filter-text')) return
 	const editor = toolbar.querySelector<HTMLElement>('.list-filter-text')!
 
 	editor.dataset.filled = 'true'
