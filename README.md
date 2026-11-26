@@ -23,7 +23,7 @@ compose:
 Click the filter icon in the list toolbar to focus the editor at the end of the query.
 While the editor has focus, click the icon or press Enter to apply a complete query.
 After the search, the editor regains focus at the caret position.
-The focused editor reserves space for about eight characters.
+Six trailing spaces extend the editor's clickable area and are underlined on hover or focus.
 The editor grows with the query and scrolls horizontally when space runs out.
 The editor displays field names in the request language and stores their canonical property paths.
 Operators, value spelling and spacing are preserved.
@@ -31,7 +31,8 @@ The general editor and the column filters submit together. Editing either update
 A column edit replaces the criteria for that property path with its raw column expression.
 An OR between different fields stays in the general editor. A criterion also stays there when column syntax
 would change its meaning.
-The list's reset action clears both.
+The list's reset button clears both editors and focuses the general editor.
+Apply the empty query to refresh the list.
 
 Named lists save the query with their other settings. On submission, the stored expression uses English property
 paths in alphabetical order. The editor displays fields in the request language and sorts them in that language.

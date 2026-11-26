@@ -18,6 +18,54 @@ const removalObserver = new MutationObserver(() => {
 	removalObserver.disconnect()
 })
 
+function underlineSearch(editor: HTMLElement, text: string): Highlight
+{
+	const underline = new Highlight()
+	let depth = 0
+	let quote = ''
+	let start = 0
+	let end   = 0
+	for (; end < text.length; end ++) {
+		const character = text[end]
+		const next      = text[end + 1]
+		if (quote) {
+			if ((character === '\\') && ((next === quote) || (next === '\\'))) {
+				end ++
+			}
+			else if (character === quote) {
+				quote = ''
+			}
+		}
+		else if (
+			(character === '"')
+			|| ((character === "'") && (!end || /[\s.:=<>≠!&+|,(-]/.test(text[end - 1])))
+		) {
+			quote = character
+		}
+		else if (depth && (character === '\\') && next && '()"\\'.includes(next)) {
+			end ++
+		}
+		else if (character === '(') {
+			depth ++
+		}
+		else if (depth && (character === ')')) {
+			depth --
+		}
+		else if (!depth && /\s/.test(character)) {
+			const range = textRange(editor, start, end)
+			if (range) {
+				underline.add(range)
+			}
+			start = end + 1
+		}
+	}
+	const range = textRange(editor, start, end)
+	if (range) {
+		underline.add(range)
+	}
+	return underline
+}
+
 export function highlightSearch(editor: HTMLElement, text: string, search: SearchSyntax): void
 {
 	if (!('highlights' in CSS)) return
@@ -26,14 +74,9 @@ export function highlightSearch(editor: HTMLElement, text: string, search: Searc
 	}
 	highlightedEditor = editor
 
-	const criteria = new Highlight()
-	const values   = new Highlight()
-	for (const { end, start, valueStart, valueEnd } of search.criteria) {
-		const criterion = textRange(editor, start, end)
-		const value     = textRange(editor, valueStart, valueEnd)
-		if (criterion) {
-			criteria.add(criterion)
-		}
+	const values = new Highlight()
+	for (const { valueStart, valueEnd } of search.criteria) {
+		const value = textRange(editor, valueStart, valueEnd)
 		if (value) {
 			values.add(value)
 		}
@@ -51,7 +94,7 @@ export function highlightSearch(editor: HTMLElement, text: string, search: Searc
 	}
 	error.priority = 1
 	space.priority = 1
-	CSS.highlights.set(criterionHighlight, criteria)
+	CSS.highlights.set(criterionHighlight, underlineSearch(editor, text))
 	CSS.highlights.set(errorHighlight, error)
 	CSS.highlights.set(spaceHighlight, space)
 	CSS.highlights.set(valueHighlight, values)

@@ -2,6 +2,7 @@ import type { Criterion }    from './syntax.js'
 import { formatSearchField } from './syntax.js'
 import { parseSearch }       from './syntax.js'
 import type { SearchSyntax } from './syntax.js'
+import { editorText }        from './text-range.js'
 import { replaceText }       from './text-range.js'
 import { textOffset }        from './text-range.js'
 
@@ -63,14 +64,14 @@ export class FieldCorrection
 		private readonly resolved: (path: string, field: string, preferred?: string) => void
 	)
 	{
-		this.text     = editor.textContent ?? ''
+		this.text     = editorText(editor)
 		this.criteria = parseSearch(this.text).criteria
 	}
 
 	private apply(lookup: Lookup): void
 	{
 		if (this.composing || !lookup.result || !this.lookups.delete(lookup)) return
-		if (!this.editor.isConnected || this.text !== this.editor.textContent) return
+		if (!this.editor.isConnected || this.text !== editorText(this.editor)) return
 		const { field, path } = lookup.result
 		if (path) {
 			this.resolved(path, lookup.criterion.field, field)

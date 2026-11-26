@@ -6,6 +6,7 @@ import { FieldCorrection }     from './field-correction.js'
 import { highlightSearch }     from './highlight.js'
 import { selectCriteria }      from './select-criteria.js'
 import { parseSearch }         from './syntax.js'
+import { editorText }          from './text-range.js'
 import { textOffset }          from './text-range.js'
 import { textPoint }           from './text-range.js'
 
@@ -31,9 +32,12 @@ function placeCaret(editor: HTMLElement, offset: number): void
 	}
 }
 
-function readEditorText(editor: HTMLElement): string
+function readEditorText(editor: HTMLElement, padding: HTMLElement): string
 {
-	const original = editor.textContent ?? ''
+	if (editor.lastChild !== padding) {
+		editor.append(padding)
+	}
+	const original = editorText(editor)
 	const text     = singleLine(original)
 	if (text === original) return text
 
@@ -41,7 +45,7 @@ function readEditorText(editor: HTMLElement): string
 	const selection = document.getSelection()
 	const anchor    = selection?.anchorNode && textOffset(editor, selection.anchorNode, selection.anchorOffset)
 	const focus     = selection?.focusNode && textOffset(editor, selection.focusNode, selection.focusOffset)
-	editor.textContent = text
+	editor.replaceChildren(text, padding)
 	if (selection && typeof anchor === 'number' && typeof focus === 'number') {
 		selection.setBaseAndExtent(
 			...textPoint(editor, singleLine(original.slice(0, anchor)).length),
@@ -67,6 +71,7 @@ function activate(toolbar: HTMLElement): void
 	const article   = toolbar.closest('article[data-action="list"]')!
 	const form      = article.querySelector<HTMLFormElement>(':scope > form')!
 	const editor    = toolbar.querySelector<HTMLElement>('.list-filter-text')!
+	const padding   = editor.querySelector<HTMLElement>('.list-filter-padding')!
 	const query     = form.querySelector<HTMLInputElement>('input[name="listQuery"]')!
 	const submit    = form.querySelector<HTMLInputElement>('.search-submit')!
 	const trigger   = toolbar.parentElement!.querySelector<HTMLButtonElement>('button.list-filter-icon')!
@@ -79,6 +84,22 @@ function activate(toolbar: HTMLElement): void
 	let synchronized = false
 
 	editor.enterKeyHint = 'search'
+	padding.textContent = ' '.repeat(6)
+	editor.addEventListener('focus', () => {
+		const selection = document.getSelection()
+		if (!selection?.isCollapsed || !selection.focusNode) return
+		const caret = textOffset(editor, selection.focusNode, selection.focusOffset)
+		const end   = editorText(editor).length
+		if (caret !== undefined && caret > end) {
+			placeCaret(editor, end)
+		}
+	})
+	padding.addEventListener('pointerdown', event => {
+		if (event.button !== 0) return
+		event.preventDefault()
+		editor.focus({ preventScroll: true })
+		placeCaret(editor, editorText(editor).length)
+	})
 	selectCriteria(editor)
 	for (const [field, path] of aliases) {
 		if (!names.has(path)) {
@@ -86,20 +107,20 @@ function activate(toolbar: HTMLElement): void
 		}
 	}
 	const columns = new ColumnFilters(form, pathOf, toolbar.dataset.listEmptyAlias, (path, value) => {
-		const text   = editor.textContent ?? ''
+		const text   = editorText(editor)
 		const origin = (columnDraft?.path === path && columnDraft.text === text) ? columnDraft.origin : text
 		const next   = editColumnCriterion(origin, path, names.get(path) ?? path, value, pathOf, toolbar.dataset.listEmptyAlias)
 		columnDraft  = { origin, path, text: next }
 		if (next !== text) {
-			editor.textContent = next
+			editor.replaceChildren(next, padding)
 			editor.dispatchEvent(new Event('input', { bubbles: true }))
 		}
 	})
 
 	const readSearch = (composing = false) => {
-		const text   = composing ? (editor.textContent ?? '') : readEditorText(editor)
+		const text   = composing ? editorText(editor) : readEditorText(editor, padding)
 		const search = parseSearch(text)
-		editor.dataset.filled = String(!!text)
+		editor.dataset.filled = String(!!text.trim())
 		editor.setAttribute('aria-invalid', String(search.error !== undefined))
 		highlightSearch(editor, text, search)
 		columns.update(search)
@@ -118,7 +139,16 @@ function activate(toolbar: HTMLElement): void
 	form.addEventListener('submit', event => {
 		synchronized = false
 		if (event.submitter?.getAttribute('name') === 'reset') {
+			event.preventDefault()
+			event.stopImmediatePropagation()
 			correction.cancel()
+			columnDraft = undefined
+			columns.clearEdits()
+			editor.replaceChildren(padding)
+			query.value = ''
+			editor.focus()
+			placeCaret(editor, 0)
+			readSearch()
 			return
 		}
 		if (event.submitter && !event.submitter.matches('.search-submit')) return
@@ -129,7 +159,7 @@ function activate(toolbar: HTMLElement): void
 			event.stopImmediatePropagation()
 			return
 		}
-		query.value = text
+		query.value = text.trim()
 		synchronized = true
 		correction.cancel()
 	}, { capture: true })
@@ -144,7 +174,9 @@ function activate(toolbar: HTMLElement): void
 		if (document.activeElement !== editor || !selection?.focusNode) return
 		const caret = textOffset(editor, selection.focusNode, selection.focusOffset)
 		if (caret !== undefined) {
-			event.formData.set('focusListCaret', String(caret))
+			const text    = editorText(editor)
+			const leading = text.length - text.trimStart().length
+			event.formData.set('focusListCaret', String(Math.max(0, Math.min(caret - leading, text.trim().length))))
 		}
 	})
 	const keepEditorFocus = (event: PointerEvent) => {
@@ -161,9 +193,8 @@ function activate(toolbar: HTMLElement): void
 			form.requestSubmit(submit)
 			return
 		}
-		editor.dataset.filled = 'true'
 		editor.focus()
-		placeCaret(editor, editor.textContent?.length ?? 0)
+		placeCaret(editor, editorText(editor).length)
 		readSearch()
 	})
 	editor.addEventListener('input', event => {
@@ -226,10 +257,9 @@ function activate(toolbar: HTMLElement): void
 	}
 	const caret = toolbar.dataset.focusCaret
 	delete toolbar.dataset.focusCaret
-	const offset = caret ? singleLine((editor.textContent ?? '').slice(0, Number(caret))).length : undefined
+	const offset = caret ? singleLine(editorText(editor).slice(0, Number(caret))).length : undefined
 	readSearch()
 	if (offset !== undefined) {
-		editor.dataset.filled = 'true'
 		editor.focus()
 		placeCaret(editor, offset)
 	}
@@ -243,9 +273,8 @@ build<HTMLElement, 'click'>('.list-filter', 'click', function (event) {
 	if (!toolbar || event.target.closest('button, .list-filter-text')) return
 	const editor = toolbar.querySelector<HTMLElement>('.list-filter-text')!
 
-	editor.dataset.filled = 'true'
 	editor.focus({ preventScroll: true })
-	const offset = (event.clientX <= editor.getBoundingClientRect().left) ? 0 : (editor.textContent?.length ?? 0)
+	const offset = (event.clientX <= editor.getBoundingClientRect().left) ? 0 : editorText(editor).length
 	placeCaret(editor, offset)
 	editors.get(toolbar)?.()
 })

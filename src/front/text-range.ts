@@ -1,6 +1,15 @@
 
 type TextPoint = [Node, number]
 
+export function editorText(editor: HTMLElement): string
+{
+	const text    = editor.textContent ?? ''
+	const padding = editor.lastElementChild
+	return (padding === editor.lastChild && padding?.classList.contains('list-filter-padding'))
+		? text.slice(0, text.length - (padding.textContent?.length ?? 0))
+		: text
+}
+
 function movedOffset(offset: number, start: number, end: number, length: number): number
 {
 	if (offset <= start) return offset
@@ -38,6 +47,9 @@ export function textPoint(editor: HTMLElement, offset: number): TextPoint
 {
 	const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT)
 	for (let node = walker.nextNode() as Text | null; node; node = walker.nextNode() as Text | null) {
+		if (node.parentElement?.classList.contains('list-filter-padding')) {
+			return [editor, editor.childNodes.length - 1]
+		}
 		if (offset <= node.length) return [node, offset]
 		offset -= node.length
 	}

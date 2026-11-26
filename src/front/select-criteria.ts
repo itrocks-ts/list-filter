@@ -1,4 +1,5 @@
 import { parseSearch } from './syntax.js'
+import { editorText }  from './text-range.js'
 import { textOffset }  from './text-range.js'
 import { textRange }   from './text-range.js'
 
@@ -12,7 +13,7 @@ function selectAt(editor: HTMLElement, x: number, y: number): boolean
 	const offset = textOffset(editor, node, position)
 	if (offset === undefined) return false
 
-	const text         = editor.textContent ?? ''
+	const text         = editorText(editor)
 	const { criteria } = parseSearch(text)
 	const index        = criteria.findIndex(({ start, end }) => start <= offset && offset <= end)
 	if (index === -1) return false

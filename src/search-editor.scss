@@ -18,7 +18,6 @@ $search-error-color: #d60024;
 		min-height: 1lh;
 		overflow-x: auto;
 		overflow-y: hidden;
-		padding-inline-end: 2ch;
 		scrollbar-width: none;
 		white-space: pre;
 
@@ -26,30 +25,21 @@ $search-error-color: #d60024;
 			text-decoration: underline dotted var(--search-underline-color);
 		}
 
-		&[data-filled='false'], &:focus {
-			min-width: 8ch;
-		}
-
-		&[data-filled='false'] {
-			background-image: repeating-linear-gradient(90deg, var(--search-underline-color) 0 1px, transparent 1px 2px);
-			background-position: left calc(50% + .65em);
-			background-repeat: no-repeat;
-			background-size: 6ch 1px;
-			padding-inline-end: 0;
-
-			&:dir(rtl) {
-				background-position-x: right;
-			}
-
-			&:not(:focus, .list-filter:hover *) {
-				visibility: hidden;
-			}
+		> .list-filter-padding {
+			cursor: text;
+			display: inline-block;
+			user-select: none;
 		}
 
 		&:focus {
 			--search-underline-color: #12365b;
 			outline: none;
 		}
+	}
+
+	div.list-filter:hover & > .list-filter-text[contenteditable] > .list-filter-padding,
+	> .list-filter-text[contenteditable]:focus > .list-filter-padding {
+		text-decoration: underline dotted var(--search-underline-color);
 	}
 }
 
