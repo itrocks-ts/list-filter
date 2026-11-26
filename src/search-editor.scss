@@ -26,14 +26,28 @@ $search-error-color: #d60024;
 			text-decoration: underline dotted var(--search-underline-color);
 		}
 
-		&[data-filled='false']:not(:focus) {
+		&[data-filled='false'], &:focus {
+			min-width: 8ch;
+		}
+
+		&[data-filled='false'] {
+			background-image: repeating-linear-gradient(90deg, var(--search-underline-color) 0 1px, transparent 1px 2px);
+			background-position: left calc(50% + .65em);
+			background-repeat: no-repeat;
+			background-size: 6ch 1px;
 			padding-inline-end: 0;
-			visibility: hidden;
+
+			&:dir(rtl) {
+				background-position-x: right;
+			}
+
+			&:not(:focus, .list-filter:hover *) {
+				visibility: hidden;
+			}
 		}
 
 		&:focus {
 			--search-underline-color: #12365b;
-			min-width: 8ch;
 			outline: none;
 		}
 	}
