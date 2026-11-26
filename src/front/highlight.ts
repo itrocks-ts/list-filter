@@ -1,14 +1,16 @@
 import type { SearchSyntax } from './syntax.js'
 import { textRange }         from './text-range.js'
 
-const errorHighlight = 'list-search-error'
-const spaceHighlight = 'list-search-error-space'
-const valueHighlight = 'list-search-value'
+const criterionHighlight = 'list-search-criterion'
+const errorHighlight     = 'list-search-error'
+const spaceHighlight     = 'list-search-error-space'
+const valueHighlight     = 'list-search-value'
 
 let highlightedEditor: HTMLElement | undefined
 
 const removalObserver = new MutationObserver(() => {
 	if (highlightedEditor?.isConnected !== false) return
+	CSS.highlights.delete(criterionHighlight)
 	CSS.highlights.delete(errorHighlight)
 	CSS.highlights.delete(spaceHighlight)
 	CSS.highlights.delete(valueHighlight)
@@ -24,11 +26,16 @@ export function highlightSearch(editor: HTMLElement, text: string, search: Searc
 	}
 	highlightedEditor = editor
 
-	const values = new Highlight()
-	for (const { valueStart, valueEnd } of search.criteria) {
-		const range = textRange(editor, valueStart, valueEnd)
-		if (range) {
-			values.add(range)
+	const criteria = new Highlight()
+	const values   = new Highlight()
+	for (const { end, start, valueStart, valueEnd } of search.criteria) {
+		const criterion = textRange(editor, start, end)
+		const value     = textRange(editor, valueStart, valueEnd)
+		if (criterion) {
+			criteria.add(criterion)
+		}
+		if (value) {
+			values.add(value)
 		}
 	}
 
@@ -44,6 +51,7 @@ export function highlightSearch(editor: HTMLElement, text: string, search: Searc
 	}
 	error.priority = 1
 	space.priority = 1
+	CSS.highlights.set(criterionHighlight, criteria)
 	CSS.highlights.set(errorHighlight, error)
 	CSS.highlights.set(spaceHighlight, space)
 	CSS.highlights.set(valueHighlight, values)

@@ -12,10 +12,6 @@ $search-error-color: #d60024;
 
 		align-content: center;
 		align-self: stretch;
-		background-image: repeating-linear-gradient(90deg, var(--search-underline-color) 0 1px, transparent 1px 2px);
-		background-position: 0 calc(50% + .65em);
-		background-repeat: no-repeat;
-		background-size: 100% 1px;
 		border-bottom: 0;
 		flex: 1;
 		line-height: 2.25rem;
@@ -25,6 +21,10 @@ $search-error-color: #d60024;
 		padding-inline-end: 2ch;
 		scrollbar-width: none;
 		white-space: pre;
+
+		&::highlight(list-search-criterion) {
+			text-decoration: underline dotted var(--search-underline-color);
+		}
 
 		&[data-filled='false']:not(:focus) {
 			padding-inline-end: 0;
