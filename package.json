@@ -22,6 +22,8 @@
 	"devDependencies": {
 		"@itrocks/class-file": "latest",
 		"@itrocks/class-view": "latest",
+		"@itrocks/sql-build": "latest",
+		"@itrocks/sql-join": "latest",
 		"@types/node": "^24.10",
 		"pdf-lib": "^1.17.1",
 		"sass": "^1.95",
@@ -41,6 +43,7 @@
 		"README.md",
 		"cjs",
 		"docs/search-filter-guide.md",
+		"docs/search-sql-examples.fr.md",
 		"*.css",
 		"*.d.ts",
 		"*.js",
@@ -67,7 +70,7 @@
 		"build:cjs": "tsc && node -e \"const fs=require('node:fs'),path=require('node:path');for(const file of fs.readdirSync('src'))if(file.endsWith('.html'))fs.copyFileSync(path.join('src',file),path.join('cjs',file))\"",
 		"build:css": "sass --no-source-map src/search-editor.scss:search-editor.css",
 		"build:front": "tsc -p src/front/tsconfig.json",
-		"test": "npm run build && node --test --test-isolation=none test/*.test.mjs"
+		"test": "npm run build && node --test test/*.test.mjs"
 	},
 	"version": "1.0.0"
 }

@@ -114,3 +114,5 @@ The words `and`, `or` and their local equivalents are part of the search value i
 | Title | `Alien, Predator` | `title:Alien,Predator` |
 | Title | `Alien & *1979*` | `title:Alien and title:*1979*` |
 | Title | `Rock and Roll` | `title:"Rock and Roll"` |
+
+See the [French SQL equivalence reference](search-sql-examples.fr.md) for the predicates behind these examples.
