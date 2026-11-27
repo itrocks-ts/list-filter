@@ -14,6 +14,26 @@ type ColumnDraft = { origin: string, path: string, text: string }
 
 const editors = new WeakMap<HTMLElement, () => void>()
 
+function keepSelectionBeforePadding(editor: HTMLElement): void
+{
+	const padding   = editor.lastChild
+	const selection = document.getSelection()
+	if (!(padding instanceof HTMLElement) || !padding.classList.contains('list-filter-padding')) return
+	if (!selection?.anchorNode || !selection.focusNode) return
+
+	const end        = editor.childNodes.length - 1
+	const inPadding  = (node: Node, offset: number) => padding.contains(node) || (node === editor && offset > end)
+	const moveAnchor = inPadding(selection.anchorNode, selection.anchorOffset)
+	const moveFocus  = inPadding(selection.focusNode, selection.focusOffset)
+	if (!moveAnchor && !moveFocus) return
+
+	const [node, offset] = textPoint(editor, editorText(editor).length)
+	selection.setBaseAndExtent(
+		moveAnchor ? node : selection.anchorNode, moveAnchor ? offset : selection.anchorOffset,
+		moveFocus ? node : selection.focusNode, moveFocus ? offset : selection.focusOffset
+	)
+}
+
 function placeCaret(editor: HTMLElement, offset: number): void
 {
 	const selection = document.getSelection()
@@ -94,13 +114,7 @@ function activate(toolbar: HTMLElement): void
 	padding.textContent = ' '.repeat(6)
 	editor.addEventListener('focus', () => {
 		updateTriggerLabel()
-		const selection = document.getSelection()
-		if (!selection?.isCollapsed || !selection.focusNode) return
-		const caret = textOffset(editor, selection.focusNode, selection.focusOffset)
-		const end   = editorText(editor).length
-		if (caret !== undefined && caret > end) {
-			placeCaret(editor, end)
-		}
+		keepSelectionBeforePadding(editor)
 	})
 	editor.addEventListener('blur', updateTriggerLabel)
 	updateTriggerLabel()
@@ -274,6 +288,13 @@ function activate(toolbar: HTMLElement): void
 		placeCaret(editor, offset)
 	}
 }
+
+document.addEventListener('selectionchange', () => {
+	const editor = document.activeElement
+	if (editor instanceof HTMLElement && editor.matches('.list-search-editor > .list-filter-text')) {
+		keepSelectionBeforePadding(editor)
+	}
+})
 
 build<HTMLElement, 'call'>({ callback: activate, priority: 2000, selector: '.list-search-editor' })
 
