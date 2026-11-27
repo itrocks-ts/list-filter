@@ -1,3 +1,5 @@
+import { Director } from './search-director'
+
 export declare class Studio
 {
 	name: string
@@ -6,8 +8,9 @@ export declare class Studio
 export declare class Film
 {
 	added: Date
+	director?: Director
 	originalTitle: string
 	studio: Studio
 	title: string
-	watchCount: number
+	watchCount?: null | number
 }

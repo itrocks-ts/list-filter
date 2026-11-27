@@ -61,11 +61,12 @@ export class FieldCorrection
 	constructor(
 		private readonly editor: HTMLElement,
 		private readonly action: string,
+		locale: string,
 		private readonly resolved: (path: string, field: string, preferred?: string) => void
 	)
 	{
 		this.text     = editorText(editor)
-		this.criteria = parseSearch(this.text).criteria
+		this.criteria = parseSearch(this.text, locale).criteria
 	}
 
 	private apply(lookup: Lookup): void

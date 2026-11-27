@@ -1,17 +1,20 @@
-import type { Criterion }    from './syntax.js'
-import { formatSearchField } from './syntax.js'
-import { parseSearch }       from './syntax.js'
-import type { SearchNode }   from './syntax.js'
+import { columnComparison }       from '@itrocks/list/search-expression.js'
+import { searchExpression }       from '@itrocks/list/search-expression.js'
+import type { SearchExpression } from '@itrocks/list/search-expression.js'
+import type { Criterion }         from './syntax.js'
+import { formatSearchField }      from './syntax.js'
+import { parseSearch }            from './syntax.js'
+import type { SearchNode }        from './syntax.js'
 
 type Clause = { operator?: 'AND' | 'OR' | 'column', quoted?: string, text: string }
 type PathOf = (field: string) => string
 
-function clause(node: SearchNode, emptyAliases: readonly string[]): Clause | undefined
+function clause(node: SearchNode): Clause | undefined
 {
 	if ('operands' in node) {
 		const operands: Clause[] = []
 		for (const operand of node.operands) {
-			const projected = clause(operand, emptyAliases)
+			const projected = clause(operand)
 			if (!projected) return
 			operands.push(projected)
 		}
@@ -22,21 +25,19 @@ function clause(node: SearchNode, emptyAliases: readonly string[]): Clause | und
 			? { operator: 'column', text: node.column }
 			: { text: node.column }
 	}
-	const text = columnValue(node, emptyAliases)
+	const text = columnValue(node)
 	if (text === undefined) return
 	// A standalone column value keeps its spaces. A combined expression needs quotes around edge spaces.
 	return text.trim() === text ? { text } : { quoted: quoteValue(text), text }
 }
 
-function collect(
-	node: SearchNode, pathOf: PathOf, emptyAliases: readonly string[], clauses: Map<string, Clause[] | undefined>
-): void
+function collect(node: SearchNode, pathOf: PathOf, clauses: Map<string, Clause[] | undefined>): void
 {
 	const path = singleField(node, pathOf)
 	if (path) {
 		// A field is displayed only when all its independent predicates can be represented.
 		if (clauses.has(path) && !clauses.get(path)) return
-		const operand = clause(node, emptyAliases)
+		const operand = clause(node)
 		if (!operand) {
 			clauses.set(path, undefined)
 			return
@@ -49,41 +50,34 @@ function collect(
 	}
 	else if ('operands' in node && node.operator === 'AND') {
 		for (const operand of node.operands) {
-			collect(operand, pathOf, emptyAliases, clauses)
+			collect(operand, pathOf, clauses)
 		}
 	}
 }
 
-export function columnProjection(
-	expression: SearchNode | undefined, pathOf: PathOf, emptyAlias = 'empty'
-): Map<string, string>
+export function columnProjection(expression: SearchNode | undefined, pathOf: PathOf): Map<string, string>
 {
 	const clauses = new Map<string, Clause[] | undefined>()
 	if (expression) {
-		collect(expression, pathOf, ['empty', emptyAlias.toLocaleLowerCase()], clauses)
+		collect(expression, pathOf, clauses)
 	}
 	return new Map([...clauses].flatMap(([path, operands]) => operands ? [[path, combine(operands, 'AND').text]] : []))
 }
 
-function columnValue({ end, operator, value, valueEnd }: Criterion, emptyAliases: readonly string[]): string | undefined
+function columnValue({ columnSyntax, operator, value }: Criterion): string | undefined
 {
-	const trimmed = value.trim()
-	const alias   = operator === ':' ? trimmed.replace(/^(?:!=|<>|!)\s*/, '') : trimmed
-	const empty   = emptyAliases.includes(alias.toLocaleLowerCase())
-	if (operator === ':' && (empty || /[-*?%_\\]/.test(value))) return
-	if (operator === '!=' && (empty || /[*?]/.test(value))) return
-	if (operator !== ':' && trimmed !== value) return
+	if (!columnSyntax && value.trim() !== value) return
+	if (!value) return operator === ':' ? '""' : operator
 
-	let prefix = operator === ':' ? '' : operator === '!=' ? '!' : operator
-	// The legacy parser recognises the longest comparison before trimming its operand.
+	let prefix = operator === ':' ? '' : operator
+	// The column parser recognises the longest comparison before trimming its operand.
 	if (
 		(['<', '>', '!'].includes(prefix) && value.startsWith('='))
 		|| (prefix === '<' && value.startsWith('>'))
 	) {
 		prefix += ' '
 	}
-	const quotedEmpty = !value && end > valueEnd
-	const escaped     = quotedEmpty || /[,|&+()"\\]/.test(value) ? quoteValue(value) : value
+	const escaped = /[,|&+()"\\]/.test(value) ? quoteValue(value) : value
 	return prefix + escaped
 }
 
@@ -99,21 +93,45 @@ function combine(operands: Clause[], operator: 'AND' | 'OR'): Clause
 	return { operator, text }
 }
 
-export function formatColumnCriterion(field: string, value: string, emptyAlias = 'empty', original = ''): string
+export function formatColumnCriterion(field: string, value: string, original = ''): string
 {
-	const prefix       = formatSearchField(field, original) + ':'
-	const emptyAliases = ['empty', emptyAlias.toLocaleLowerCase()]
-	const quoted       = quoteValue(value)
-	const operands     = /\s/.test(value) ? [quoted, value] : [value, quoted]
-	// Use the short form only when the general editor projects it back to the same column value.
-	for (const operand of operands) {
-		const text = prefix + operand
-		const node = parseSearch(text).expression
-		if (node && 'field' in node && node.column === undefined && columnValue(node, emptyAliases) === value) {
-			return text
-		}
+	const name = formatSearchField(field, original)
+	try {
+		return formatColumnExpression(name, searchExpression(value))
 	}
-	return `${prefix}(${value})`
+	catch (error) {
+		if (!(error instanceof SyntaxError)) throw error
+		// Keep unfinished column input visible as an unfinished general criterion.
+		return name + ':' + quoteValue(value).slice(0, -1)
+	}
+}
+
+function formatColumnExpression(field: string, expression: SearchExpression, parent?: 'AND' | 'OR'): string
+{
+	if (!('value' in expression)) {
+		const { operands, operator } = expression
+		const separator = operator === 'AND' ? ' & ' : ' | '
+		const text      = operands.map(operand => formatColumnExpression(field, operand, operator)).join(separator)
+		return (operator === 'OR' && parent === 'AND') ? '(' + text + ')' : text
+	}
+	const comparison = columnComparison.exec(expression.value)
+	const operator   = comparison?.[1]
+	const value      = comparison ? comparison[2].trim() : expression.value
+	const prefix     = operator === '!' ? '!' + field + ':' : field + (operator ?? ':')
+	if (operator && operator !== '!' && !value) return field + ':' + operator
+
+	const joined = (operator === '<' || operator === '>') && value.startsWith('=')
+		|| (operator === '<' && value.startsWith('>'))
+	if (!value || joined || /[\s&+|,()"\\]|^'/.test(value)) return prefix + quoteValue(value)
+	return prefix + value
+}
+
+export function groupSearchAlternative(text: string, locale = 'en'): string
+{
+	const root = parseSearch(text, locale).expression
+	return root && 'operands' in root && root.operator === 'OR' && root.start === root.operands[0].start
+		? '(' + text + ')'
+		: text
 }
 
 function quoteValue(value: string): string

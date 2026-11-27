@@ -10,16 +10,79 @@ function tree(node)
 	return [node.field, node.value]
 }
 
-test('accepts all spellings of not equal and preserves their source ranges', () => {
-	const spellings = [
-		'!title:1900', '-title:1900', '!=title:1900', '<>title:1900',
-		'title!=1900', 'title<>1900', 'title≠1900', 'title:!1900'
+test('keeps compact alternatives together and preserves explicit criteria after a pipe', () => {
+	const text   = 'titre:Alien|Predator & score>=10|!"nom du studio":Fox'
+	const parsed = parseSearch(text)
+	assert.deepEqual(tree(parsed.expression), [
+		'OR', ['AND', ['titre', 'Alien|Predator'], ['score', '10']], ['nom du studio', 'Fox']
+	])
+	const [title, , studio] = parsed.criteria
+	assert.equal(title.column, 'Alien|Predator')
+	assert.equal(text.slice(title.valueStart, title.valueEnd), 'Alien|Predator')
+	assert.equal(studio.operator, '!')
+	assert.equal(parseSearch('titre:Alien | Predator').expression, undefined)
+})
+
+test('reads logical words between criteria and keeps field names and values literal', () => {
+	const expected = ['OR', ['title', 'Rock and roll'], ['AND', ['title', 'or'], ['score', '10']]]
+	for (const [locale, or, and] of [['en', 'OR', 'and'], ['fr-FR', 'ou', 'ET'], ['de-DE', 'oder', 'und']]) {
+		const parsed = parseSearch(`title:"Rock and roll" ${or} title:or ${and} score>=10`, locale)
+		assert.deepEqual(tree(parsed.expression), expected)
+	}
+	assert.deepEqual(tree(parseSearch('title:or or :literal').expression),
+		['AND', ['title', 'or'], ['or', 'literal']])
+	assert.deepEqual(tree(parseSearch('title:Alien or !title:Predator').expression),
+		['OR', ['title', 'Alien'], ['title', 'Predator']])
+	assert.equal(parseSearch('title:Alien or').incomplete, true)
+	assert.equal(parseSearch('title:Alien and').incomplete, true)
+	assert.equal(parseSearch('title:Alien,Predator and score>=10').criteria[0].column, 'Alien,Predator')
+})
+
+test('prefers a logical word after an empty criterion when another criterion follows', () => {
+	for (const [word, logical] of [['ou', 'OR'], ['or', 'OR'], ['et', 'AND'], ['and', 'AND']]) {
+		for (const [left, comparison] of [['titre=', '='], ['titre:', '='], ['!titre:', '!'], ['titre:!=', '!=']]) {
+			const text   = `${left} ${word} (score>=10)`
+			const result = parseSearch(text, 'fr-FR')
+			const [criterion] = result.criteria
+			assert.equal(result.expression.operator, logical)
+			assert.equal(criterion.value, '')
+			assert.equal(criterion.implicitEmpty, true)
+			assert.equal(criterion.operator, comparison)
+			assert.equal(criterion.end, left.length)
+		}
+	}
+	for (const [text, value] of [['titre= ou', 'ou'], ['titre=ou score>=10', 'ou'], ['titre="ou" et score>=10', 'ou']]) {
+		assert.equal(parseSearch(text, 'fr-FR').criteria[0].value, value)
+	}
+	const negated = parseSearch('!titre>= ou !score:10', 'fr-FR')
+	assert.equal(negated.expression.operator, 'OR')
+	assert.equal(negated.criteria[0].operator, '<')
+})
+
+test('uses spaces or group parentheses to delimit a logical word', () => {
+	for (const [word, logical] of [['ou', 'OR'], ['or', 'OR'], ['et', 'AND'], ['and', 'AND']]) {
+		for (const [left, right] of [['(titre=)', '(score>=10)'], ['(titre=)', ' score>=10'], ['titre= ', '(score>=10)']]) {
+			const parsed = parseSearch(left + word + right, 'fr-FR')
+			assert.equal(parsed.expression.operator, logical)
+			assert.deepEqual(parsed.criteria.map(criterion => criterion.value), ['', '10'])
+		}
+		assert.deepEqual(tree(parseSearch(`titre=${word} score>=10`, 'fr-FR').expression),
+			['AND', ['titre', word], ['score', '10']])
+	}
+})
+
+test('distinguishes negated prefixes from exact inequality and preserves their source ranges', () => {
+	const prefixes = ['!title:1900', '-title:1900', 'title!1900', 'title:!1900']
+	const exact    = [
+		'!title=1900', '-title=1900',
+		'title!=1900', 'title<>1900', 'title≠1900', 'title:!=1900', 'title:<>1900', 'title:≠1900'
 	]
+	const spellings = [...prefixes, ...exact]
 	const parsed = parseSearch(spellings.join(' '))
 	assert.equal(parsed.error, undefined)
 	assert.equal(parsed.incomplete, undefined)
 	assert.deepEqual(parsed.criteria.map(({ field, operator, value }) => [field, operator, value]),
-		spellings.map(() => ['title', '!=', '1900']))
+		[...prefixes.map(() => ['title', '!', '1900']), ...exact.map(() => ['title', '!=', '1900'])])
 	assert.deepEqual(parsed.criteria.map(({ start, end }) => spellings.join(' ').slice(start, end)), spellings)
 })
 
@@ -30,6 +93,18 @@ test('accepts equality, ordered comparisons and multiple criteria', () => {
 	assert.deepEqual(parsed.criteria.map(({ field, operator, value }) => [field, operator, value]), [
 		['année', '>=', '1900'], ['score', '<', '10'], ['person.name', ':', 'A B'], ['title', '=', 'ok']
 	])
+})
+
+test('requires exact inequality after the field and supports negating a quoted field name', () => {
+	for (const operator of ['!=', '<>', '≠']) {
+		for (const separator of [':', '=']) {
+			assert.equal(parseSearch(operator + 'title' + separator + 'Alien').expression, undefined)
+		}
+	}
+	const [criterion] = parseSearch('!"nombre de vues"=10').criteria
+	assert.equal(criterion.field, 'nombre de vues')
+	assert.equal(criterion.operator, '!=')
+	assert.equal(parseSearch('"!nombre de vues"=10').criteria[0].field, '!nombre de vues')
 })
 
 test('ignores spaces around field separators while preserving the source and quoted spaces', () => {
@@ -53,7 +128,7 @@ test('accepts both quote styles for fields, paths and path segments', () => {
 	assert.equal(parsed.error, undefined)
 	assert.equal(parsed.incomplete, undefined)
 	assert.deepEqual(parsed.criteria.map(({ field, operator, value }) => [field, operator, value]), [
-		['nombre de vues', '!=', '1900'],
+		['nombre de vues', '!', '1900'],
 		['réalisateur.nom complet', '=', 'Jean Reno'],
 		['réalisateur.nom complet', ':', 'Jean']
 	])
@@ -108,7 +183,7 @@ test('keeps leading symbols literal after an explicit comparison', () => {
 	const parsed = parseSearch('title="!A B" count>=<10 -video:!live title:>">A B"')
 	assert.equal(parsed.error, undefined)
 	assert.deepEqual(parsed.criteria.map(({ operator, value }) => [operator, value]),
-		[['=', '!A B'], ['>=', '<10'], ['!=', '!live'], ['>', '>A B']])
+		[['=', '!A B'], ['>=', '<10'], ['!', '!live'], ['>', '>A B']])
 })
 
 test('locates the first unexpected character and keeps understood operands', () => {
@@ -116,7 +191,6 @@ test('locates the first unexpected character and keeps understood operands', () 
 	const parsed = parseSearch(text)
 	assert.equal(parsed.error, text.indexOf('year'))
 	assert.deepEqual(parsed.criteria.map(({ valueStart, valueEnd }) => text.slice(valueStart, valueEnd)), ['🎬 A'])
-	assert.equal(parseSearch('title!x').error, 6)
 	assert.equal(parseSearch('!title>value').error, 6)
 })
 
@@ -131,13 +205,24 @@ test('reads leading comparisons inside quoted values and decodes escapes', () =>
 })
 
 test('retains known values while criteria are incomplete at the end of input', () => {
-	for (const text of ['title', 'title!', 'title:', 'title : ', 'title:!', 'title : ! ', 'title:"A B', "title:'A B", 'person.', "'nom"]) {
+	for (const text of ['title', 'title>"', 'title:"A B', "title:'A B", 'person.', "'nom"]) {
 		assert.equal(parseSearch(text).incomplete, true, text)
 		assert.equal(parseSearch(text).error, undefined, text)
 	}
 	assert.equal(parseSearch('title:"A B').criteria[0].value, 'A B')
 	assert.equal(parseSearch('title=""').criteria[0].value, '')
 	assert.equal(parseSearch('title=""').incomplete, undefined)
+	for (const text of ['title:=', 'title:!', 'title : ! ']) {
+		assert.equal(parseSearch(text).expression.value, '')
+	}
+})
+
+test('reads a bare colon or equals as an empty equality at a criterion boundary', () => {
+	const parsed = parseSearch('(title: | title= ) & title = ')
+	assert.ok(parsed.expression)
+	assert.deepEqual(parsed.criteria.map(({ operator, value }) => [operator, value]),
+		[['=', ''], ['=', ''], ['=', '']])
+	assert.equal(parseSearch('title:""').expression.operator, ':')
 })
 
 test('reports unexpected characters around quoted fields and values', () => {
@@ -204,7 +289,7 @@ test('requires colon by itself for column groups and fields for general operands
 })
 
 test('retains valid subexpressions and understood ranges for unfinished queries', () => {
-	const parsed = parseSearch('title:Alien | (title:Aliens + year:')
+	const parsed = parseSearch('title:Alien | (title:Aliens + year:"')
 	assert.equal(parsed.incomplete, true)
 	assert.equal(parsed.expression, undefined)
 	assert.deepEqual(tree(parsed.partial), ['OR', ['title', 'Alien'], ['title', 'Aliens']])
@@ -219,9 +304,7 @@ test('retains valid subexpressions and understood ranges for unfinished queries'
 	assert.deepEqual(tree(invalid.partial), ['title', 'Alien'])
 })
 
-test('keeps quoted logic punctuation literal and reads saved flat punctuation in legacy mode', () => {
+test('keeps quoted logic punctuation literal', () => {
 	const text = `title:"A,B & C" studio:'(D+E|F)'`
 	assert.deepEqual(tree(parseSearch(text).expression), ['AND', ['title', 'A,B & C'], ['studio', '(D+E|F)']])
-	assert.deepEqual(tree(parseSearch('title:A,B studio:(D+E|F)', true).expression),
-		['AND', ['title', 'A,B'], ['studio', '(D+E|F)']])
 })

@@ -21,6 +21,7 @@
 	"description": "Editable search filters for object lists",
 	"devDependencies": {
 		"@itrocks/class-file": "latest",
+		"@itrocks/class-view": "latest",
 		"@types/node": "^24.10",
 		"pdf-lib": "^1.17.1",
 		"sass": "^1.95",
@@ -39,6 +40,7 @@
 		"LICENSE",
 		"README.md",
 		"cjs",
+		"docs/search-filter-guide.md",
 		"*.css",
 		"*.d.ts",
 		"*.js",
@@ -67,5 +69,5 @@
 		"build:front": "tsc -p src/front/tsconfig.json",
 		"test": "npm run build && node --test --test-isolation=none test/*.test.mjs"
 	},
-	"version": "0.2.5"
+	"version": "1.0.0"
 }

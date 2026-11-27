@@ -3,6 +3,7 @@ import { List }               from '@itrocks/list'
 import { listAccess }         from '@itrocks/list'
 import { escapeFilterText }   from '@itrocks/list/filter-summary'
 import { SearchType }         from '@itrocks/storage'
+import { lang }               from '@itrocks/translate'
 import { tr }                 from '@itrocks/translate'
 import { parseSearch }        from './front/syntax'
 import { InvalidListQuery }   from './list-query'
@@ -43,13 +44,13 @@ export class ListWithFilters<T extends object = object> extends List<T>
 		const caret = (
 			request.request.method === 'POST' && typeof focusListCaret === 'string' && /^\d+$/.test(focusListCaret)
 		) ? String(searchCaret(original, query, Math.min(Number(focusListCaret), original.length),
-			field => resolveSearchField(type, field)?.path ?? field
+			field => resolveSearchField(type, field)?.path ?? field, lang()
 		)) : ''
 
 		const paths  = new Map<string, string>()
 		const fields = [
 			...this.columns.map(column => column.name),
-			...parseSearch(query).criteria.map(criterion => criterion.field)
+			...parseSearch(query, lang()).criteria.map(criterion => criterion.field)
 		]
 		for (const field of fields) {
 			const resolved = resolveSearchField(request.type, field, false)
@@ -61,13 +62,13 @@ export class ListWithFilters<T extends object = object> extends List<T>
 
 		const escaped = escapeFilterText(query)
 		return {
-			emptyAlias: escapeFilterText(tr('empty')),
 			focusCaret: caret,
 			formFields: {
 				query:    escapeFilterText(this.listQuery.displayText(type)),
 				template: '/@itrocks/list-filter/cjs/search-input.html'
 			},
 			hasQuery: !!query,
+			locale:   lang(),
 			paths:    encodeURIComponent(JSON.stringify([...paths])),
 			query:    escaped,
 			template: '/@itrocks/list-filter/cjs/search-editor.html'

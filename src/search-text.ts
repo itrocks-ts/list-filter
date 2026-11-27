@@ -1,6 +1,10 @@
-import { formatSearchField } from './front/syntax'
+import { formatLogicalSeparator } from './front/syntax'
+import { formatSearchField }      from './front/syntax'
+import { logicalWords }       from './front/syntax'
 import { parseSearch }       from './front/syntax'
 import type { SearchNode }   from './front/syntax'
+
+type LogicalWords = ReturnType<typeof logicalWords>
 
 type Rendered = { fields: string[]; text: string }
 
@@ -15,35 +19,45 @@ function compareFields(left: readonly string[], right: readonly string[], collat
 }
 
 function renderSearch(
-	text: string, node: SearchNode, fieldOf: (field: string) => string, collator: Intl.Collator
+	text: string, node: SearchNode, fieldOf: (field: string) => string, collator: Intl.Collator, words?: LogicalWords
 ): Rendered
 {
 	if ('field' in node) {
 		const field    = fieldOf(node.field)
 		const spelling = text.slice(node.fieldStart, node.fieldEnd)
 		const rendered = field === node.field ? spelling : formatSearchField(field, spelling)
+		// A bare empty operand could absorb the next criterion when the fields are reordered.
+		const sourceSuffix = text.slice(node.fieldEnd, node.end)
+		if (node.implicitEmpty) {
+			const spaces = sourceSuffix.match(/\s*$/)?.[0] ?? ''
+			return { fields: [field], text: rendered + node.operator + '""' + spaces }
+		}
 		return {
 			fields: [field],
-			text:    text.slice(node.start, node.fieldStart) + rendered + text.slice(node.fieldEnd, node.end)
+			text:    text.slice(node.start, node.fieldStart) + rendered + sourceSuffix
 		}
 	}
 
-	const operands = node.operands.map(operand => renderSearch(text, operand, fieldOf, collator))
+	const operands = node.operands.map(operand => renderSearch(text, operand, fieldOf, collator, words))
 		.sort((left, right) => compareFields(left.fields, right.fields, collator))
 	const first = node.operands[0]
 	const last  = node.operands[node.operands.length - 1]
 	let result  = text.slice(node.start, first.start) + operands[0].text
 	for (let index = 1; index < operands.length; index ++) {
-		result += text.slice(node.operands[index - 1].end, node.operands[index].start) + operands[index].text
+		const separator = text.slice(node.operands[index - 1].end, node.operands[index].start)
+		const next      = operands[index].text
+		result += formatLogicalSeparator(separator, operands[index - 1].text, next, words?.[node.operator]) + next
 	}
 	return { fields: operands.flatMap(operand => operand.fields), text: result + text.slice(last.end, node.end) }
 }
 
-export function searchCaret(before: string, after: string, offset: number, pathOf = (field: string) => field): number
+export function searchCaret(
+	before: string, after: string, offset: number, pathOf = (field: string) => field, locale = 'en'
+): number
 {
 	if (before === after) return offset
-	const previous  = parseSearch(before).criteria
-	const current   = parseSearch(after).criteria
+	const previous  = parseSearch(before, locale).criteria
+	const current   = parseSearch(after, locale).criteria
 	const index     = previous.findLastIndex(criterion => criterion.start <= offset)
 	const criterion = previous[index]
 	if (!criterion) return Math.min(offset, after.length)
@@ -60,23 +74,13 @@ export function searchCaret(before: string, after: string, offset: number, pathO
 	return Math.min(updated.fieldEnd + offset - criterion.fieldEnd, updated.end)
 }
 
-export function sortSearch(text: string, fieldOf: (field: string) => string, locale: string): string
+export function sortSearch(
+	text: string, fieldOf: (field: string) => string, locale: string, inputLocale = locale, outputLocale?: string
+): string
 {
-	const expression = parseSearch(text).expression
+	const expression = parseSearch(text, inputLocale).expression
 	if (!expression) return text
 
-	const sorted = renderSearch(text, expression, fieldOf, new Intl.Collator(locale))
+	const sorted = renderSearch(text, expression, fieldOf, new Intl.Collator(locale), outputLocale ? logicalWords(outputLocale) : undefined)
 	return text.slice(0, expression.start) + sorted.text + text.slice(expression.end)
-}
-
-export function upgradeSearch(text: string): string
-{
-	for (const criterion of parseSearch(text, true).criteria.reverse()) {
-		const { end, valueEnd, valueStart } = criterion
-		const raw = text.slice(valueStart, valueEnd)
-		if (end !== valueEnd || !/[&+|,()]/.test(raw)) continue
-		const quoted = '"' + raw.replace(/[\\"]/g, '\\$&') + '"'
-		text = text.slice(0, valueStart) + quoted + text.slice(valueEnd)
-	}
-	return text
 }

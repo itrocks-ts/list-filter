@@ -27,7 +27,6 @@ export class ColumnFilters
 	constructor(
 		private readonly form: HTMLFormElement,
 		private readonly pathOf: (field: string) => string,
-		private readonly emptyAlias: string | undefined,
 		change: (path: string, value: string) => void
 	)
 	{
@@ -79,7 +78,7 @@ export class ColumnFilters
 	{
 		const expression = search.expression ?? search.partial
 		if (!expression && (search.incomplete || search.error !== undefined)) return
-		this.projections = columnProjection(expression, this.pathOf, this.emptyAlias)
+		this.projections = columnProjection(expression, this.pathOf)
 		this.render()
 	}
 

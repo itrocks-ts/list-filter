@@ -7,165 +7,238 @@ const { PDFDocument, rgb, StandardFonts } = require('pdf-lib')
 const sheets = {
 	fr: {
 		title: 'Saisir le filtre de recherche',
-		intro: [
-			'Dans la barre d’outils, cliquez sur l’icône de filtre. Saisissez le nom du champ et le critère, puis'
-			+ ' appuyez sur Entrée. Les champs masqués restent accessibles.',
-			'La forme champ:(...) reprend la saisie en colonne, avec ses jokers, intervalles et mots-clés.'
-		],
 		labels: ['À saisir', 'Ce que vous trouvez'],
-		sections: [
+		intro: 'Ouvrez le filtre dans la barre d’outils, puis appuyez sur Entrée pour appliquer la saisie. '
+			+ 'Vous pouvez chercher dans un champ masqué.',
+		full: [
 			['Saisir et comparer', [
+				['titre:Alien   studio.nom:Fox', 'Début du titre ou du nom du studio. Un point précise le champ lié.'],
+				['titre=Alien   titre:=Alien', 'Titre entier « Alien ».'],
+				[['!titre:Alien  -titre:Alien', 'titre!Alien   titre:!Alien'], 'Titres qui ne commencent pas par « Alien ».'],
 				[
-					'titre:Alien   studio.nom:Fox',
-					'Le texte qui commence par la valeur saisie. Un point permet de préciser le champ, ici le nom du'
-					+ ' studio.'
-				],
-				['titre=Alien', 'La valeur entière « Alien ». Pour chercher le titre exact « !Alien », tapez titre="!Alien".'],
-				[
-					['score>10   score>=10', 'score<10   score<=10'],
-					'Plus grand, au moins, plus petit, au plus. score:>=10 fonctionne aussi.'
+					['!titre=Alien  -titre=Alien', 'titre!=Alien  titre<>Alien', 'titre≠Alien   titre:!=Alien'],
+					'Titres différents de la valeur entière « Alien ».'
 				],
 				[
-					['titre!=Alien   titre<>Alien', 'titre≠Alien   titre:!Alien'],
-					'Les valeurs différentes de « Alien ». Vous pouvez aussi commencer le critère par !, -, != ou <>,'
-					+ ' comme dans !titre:Alien.'
+					['score>10  score>=10  score:>=10', 'score<10  score<=10'],
+					'Seuil strict ou inclus. Un opérateur peut remplacer les deux points.'
+				],
+				[
+					['"nombre de vues">=8', "'watch count'>=8   watchCount>=8"],
+					'Libellé français, libellé anglais ou nom de propriété. Citez les noms à espaces.'
 				]
 			]],
-			['Remplacer des caractères', [
-				['titre:(*Alien*)', 'Le texte qui contient « Alien ». * remplace zéro, un ou plusieurs caractères.'],
-				['titre:(A?B)', 'Un seul caractère à la place de ?, comme dans A1B ou A2B.'],
-				['titre:(!*test*)', 'Le texte qui ne contient pas « test ».']
+			['Utiliser des jokers', [
+				['titre:*Alien*    titre:%Alien%', '« Alien » n’importe où. * et % remplacent zéro à plusieurs caractères.'],
+				['titre:Alien*  titre:*Alien', 'Commence ou finit par « Alien ». Un joker explicite fixe le motif.'],
+				['titre:A?B     titre:A_B', '? et _ remplacent un caractère.'],
+				['!titre:*test*    titre=100%', 'Exclut « test » n’importe où. Avec =, le % est littéral.']
 			]],
 			['Chercher un intervalle ou une date', [
 				[
-					['score:(10-20)', 'score:(10-)   score:(-20)'],
-					'De 10 à 20, à partir de 10, ou jusqu’à 20. Les bornes sont incluses.'
-				],
-				[['ajouté:2020   ajouté:2020-03', 'ajouté:6'], 'Toute l’année 2020, mars 2020, ou juin de l’année en cours.'],
-				[
-					['ajouté:2020-03-09', 'ajouté:09/03/2020'],
-					'Le 9 mars 2020. L’exemple avec / est en jour/mois. Avec / ou sans séparateurs, suivez l’ordre affiché'
-					+ ' dans la liste.'
+					'score:10-20   score:10-   score:-20',
+					'Intervalle inclusif, borne inférieure seule ou borne supérieure seule.'
 				],
 				[
-					['ajouté:(2020-2022)', 'ajouté:(01/03/2020-09/03/2020)'],
-					'De 2020 à 2022, ou du 1er au 9 mars inclus en jour/mois. Pour omettre une borne, tapez par exemple'
-					+ ' ajouté:(2020-).'
+					['ajouté:2020  ajouté:2020-03  ajouté:6', 'ajouté:2020-03-09   ajouté:09/03/2020'],
+					'Année, mois ou jour. 6 désigne juin de l’année en cours. Avec /, suivez l’ordre affiché.'
 				],
-				[['ajouté>2020   ajouté<=2020', 'ajouté!=2020'], 'Après 2020, jusqu’à fin 2020, ou en dehors de 2020.'],
 				[
-					'ajouté:2020-03-??   ajouté:20??',
-					'Tous les jours de mars 2020, ou les années de 2000 à 2099. Pour les dates, % peut aussi s’utiliser'
-					+ ' comme *.'
-				]
+					['ajouté:2020-2022', 'ajouté:01/03/2020-09/03/2020'],
+					'De 2020 à 2022 ou du 1er au 9 mars inclus en jour/mois.'
+				],
+				[
+					['ajouté>2020  ajouté<=2020', 'ajouté!=2020'],
+					'Après 2020, au plus tard fin 2020 ou en dehors de 2020.'
+				],
+				['ajouté:2020-03-__   ajouté:20??', 'Tous les jours de mars 2020 ou les années de 2000 à 2099.']
 			]],
-			['Chercher une valeur vide', [
+			['Chercher le vide ou une valeur renseignée', [
 				[
-					'titre:(vide)   titre:(!vide)',
-					'Une valeur vide ou renseignée. En anglais, écrivez empty ou !empty dans les parenthèses.'
+					['titre:   titre=   titre=""   titre:=', '!titre:   -titre:   !titre=   titre!='],
+					'Chaîne vide sur la première ligne, texte différent de la chaîne vide sur la seconde.'
 				],
-				['titre=""   titre=vide', 'Un texte sans aucun caractère, ou le mot « vide » lui-même.'],
-				['ajouté!=?   ajouté:?', 'Une date vide ou renseignée.']
+				[
+					['titre:vide   titre:!vide', 'score:vide   score:!vide'],
+					'Vide ou renseigné. Le compteur facultatif teste NULL. En anglais, utilisez empty.'
+				],
+				['score!=10 | score:vide', 'Compteur différent de 10 ou absent. Les comparaisons seules ignorent les NULL.'],
+				[
+					['réalisateur:vide  !réalisateur:vide', 'réalisateur:Jean'],
+					'Lien absent ou présent. Une valeur cherche dans les propriétés représentatives, ici nom et prénom.'
+				],
+				[
+					'ajouté:vide   ajouté:!?   ajouté:?',
+					'Date vide pour les deux premières formes, renseignée pour la troisième.'
+				]
 			]],
 			['Combiner et protéger', [
-				['titre:Alien | titre:Predator', 'L’un ou l’autre. La virgule et | signifient OU.'],
-				['titre:Alien score>=10', 'Les deux à la fois. Un espace, & ou + signifie ET et passe avant OU.'],
+				[
+					['titre:Alien | titre:Predator', 'titre:(Alien, Predator)'],
+					'L’un ou l’autre. La virgule et | signifient OU.'
+				],
+				[
+					['titre:Alien score>=10', 'titre:Alien & score>=10', 'titre:Alien + score>=10'],
+					'Un espace, & ou + signifie ET. Le ET passe avant le OU.'
+				],
 				[
 					'(titre:Alien | titre:Predator) score>=10',
-					'Les parenthèses regroupent les choix. Ici, l’un des deux débuts de titre avec un score d’au moins 10.'
+					'Les parenthèses imposent le groupe des titres avant de tester le score.'
 				],
 				[
-					['titre:"Rock & Roll"', "'nombre de vues'>=8"],
-					'Les guillemets simples ou doubles entourent les champs et valeurs contenant des espaces ou des signes'
-					+ ' de combinaison.'
-				],
-				[
-					[String.raw`titre:"Le \"Grand\" Bleu"`, String.raw`titre:"A\\B"`],
-					'Entre guillemets, le signe \\ protège le guillemet utilisé et \\. Dans champ:(...), suivez les règles'
-					+ ' des colonnes.'
+					['titre:"Rock & Roll"', String.raw`titre:"Le \"Grand\" Bleu"`],
+					'Citez les espaces et les signes de combinaison. Dans les guillemets, \\ protège " et \\.'
 				]
+			]]
+		],
+		minimal: [
+			['Saisir et comparer', [
+				['titre:Alien', 'Le titre commence par « Alien ».'],
+				['titre=Alien', 'Le titre est exactement « Alien ».'],
+				['!titre:Alien', 'Le titre ne commence pas par « Alien ».'],
+				['!titre=Alien', 'Le titre diffère de la valeur entière « Alien ».'],
+				['score>=10', 'Le score vaut au moins 10, seuil inclus.'],
+				['"nombre de vues">=8', 'Citez un nom de champ qui contient des espaces.'],
+				['studio.nom:Fox', 'Cherchez par le nom du studio, un champ lié.']
+			]],
+			['Utiliser des jokers', [
+				['titre:*Alien*', '« Alien » n’importe où dans le titre. Le joker * remplace zéro ou plusieurs caractères.'],
+				['titre:A?B', 'Un seul caractère entre A et B, par exemple A1B.']
+			]],
+			['Chercher un intervalle ou une date', [
+				['score:10-20', 'De 10 à 20 inclus.'],
+				['ajouté:03/2020', 'Tout mars 2020.'],
+				['ajouté:09/03/2020', 'Le 9 mars 2020.'],
+				['ajouté:01/03/2020-09/03/2020', 'Du 1er au 9 mars 2020 inclus.'],
+				['ajouté:2020-2022', 'De 2020 à 2022 inclus.']
+			]],
+			['Chercher le vide ou une valeur renseignée', [
+				['titre=', 'Le titre est une chaîne vide.'],
+				['!titre=', 'Le titre contient au moins un caractère.'],
+				['score:vide', 'Le score facultatif est absent. Le mot vide vaut aussi pour les dates et liens.'],
+				['!score:vide', 'Le score est renseigné.'],
+				['score!=10 ou score:vide', 'Le score diffère de 10 ou il est absent.']
+			]],
+			['Combiner et protéger', [
+				['titre:Alien ou titre:Predator', 'L’un ou l’autre des deux débuts de titre.'],
+				['titre:Alien et score>=10', 'Les deux critères à la fois.'],
+				[
+					['(titre:Alien ou titre:Predator) et score>=10', 'titre:Alien,Predator et score>=10'],
+					'Même résultat. Le score s’applique aux deux titres.'
+				],
+				['titre:"Rock & Roll"', 'Les guillemets gardent les espaces et le & dans le titre cherché.']
 			]]
 		]
 	},
 	en: {
 		title: 'Enter a search filter',
-		intro: [
-			'Click the filter icon in the toolbar. Type a field name and its condition, then press Enter. You can'
-			+ ' search a field even if its column is hidden.',
-			'Use field:(...) to enter a column-style search with its wildcards, ranges, and keywords.'
-		],
 		labels: ['Type this', 'What it finds'],
-		sections: [
+		intro: 'Open the filter in the toolbar and press Enter to apply your search. You can search a hidden field.',
+		full: [
 			['Enter and compare values', [
 				[
 					'title:Alien   studio.name:Fox',
-					'Text starting with the value you type. A dot lets you pick a more specific field, here the studio'
-					+ ' name.'
+					'Start of the title or studio name. A dot selects a field on the related object.'
+				],
+				['title=Alien   title:=Alien', 'The whole title “Alien”.'],
+				[['!title:Alien  -title:Alien', 'title!Alien   title:!Alien'], 'Titles that do not start with “Alien”.'],
+				[
+					['!title=Alien  -title=Alien', 'title!=Alien  title<>Alien', 'title≠Alien   title:!=Alien'],
+					'Titles whose whole value differs from “Alien”.'
 				],
 				[
-					'title=Alien',
-					'The whole value “Alien”. An explicit = also lets you match a leading sign, as in title="!Alien".'
+					['score>10  score>=10  score:>=10', 'score<10  score<=10'],
+					'Strict or inclusive threshold. A comparison can replace the colon.'
 				],
-				[
-					['score>10   score>=10', 'score<10   score<=10'],
-					'Greater than, at least, less than, or at most. score:>=10 also works.'
-				],
-				[
-					['title!=Alien   title<>Alien', 'title≠Alien   title:!Alien'],
-					'Values other than “Alien”. You can also start the condition with !, -, !=, or <>, as in !title:Alien.'
-				]
+				[['"watch count">=8', 'watchCount>=8'], 'Field label or property name. Quote field names containing spaces.']
 			]],
-			['Replace characters with wildcards', [
-				['title:(*Alien*)', 'Text containing “Alien”. * stands for zero, one, or several characters.'],
-				['title:(A?B)', 'Exactly one character in place of ?, as in A1B or A2B.'],
-				['title:(!*test*)', 'Text without “test”.']
+			['Use wildcards', [
+				['title:*Alien*    title:%Alien%', '“Alien” anywhere. * and % match zero or more characters.'],
+				['title:Alien*  title:*Alien', 'Starts or ends with “Alien”. Explicit wildcards set the pattern.'],
+				['title:A?B     title:A_B', '? and _ match one character.'],
+				['!title:*test*    title=100%', 'Excludes “test” anywhere. With =, % is literal.']
 			]],
 			['Search for a range or date', [
+				['score:10-20   score:10-   score:-20', 'Inclusive range, lower bound only, or upper bound only.'],
 				[
-					['score:(10-20)', 'score:(10-)   score:(-20)'],
-					'From 10 to 20, from 10 onward, or up to 20. Both ends are included.'
-				],
-				[['added:2020   added:2020-03', 'added:6'], 'All of 2020, March 2020, or June of the current year.'],
-				[
-					['added:2020-03-09', 'added:09/03/2020'],
-					'9 March 2020. The slash example uses day/month order. With slashes or no separators, follow the order'
-					+ ' shown in the list.'
+					['added:2020  added:2020-03  added:6', 'added:2020-03-09   added:09/03/2020'],
+					'Year, month or day. 6 is June this year. The slash example uses day/month order.'
 				],
 				[
-					['added:(2020-2022)', 'added:(01/03/2020-09/03/2020)'],
-					'2020 through 2022, or 1 through 9 March in day/month order. Leave one end open with added:(2020-),'
-					+ ' for example.'
+					['added:2020-2022', 'added:01/03/2020-09/03/2020'],
+					'2020 through 2022, or 1 through 9 March in day/month order.'
 				],
-				[['added>2020   added<=2020', 'added!=2020'], 'After 2020, up to the end of 2020, or outside 2020.'],
-				[
-					'added:2020-03-??   added:20??',
-					'Every day in March 2020, or the years 2000 to 2099. For dates, % also works like *.'
-				]
+				[['added>2020  added<=2020', 'added!=2020'], 'After 2020, up to the end of 2020, or outside 2020.'],
+				['added:2020-03-__   added:20??', 'Every day in March 2020, or the years 2000 to 2099.']
 			]],
-			['Find empty values', [
+			['Find empty or populated fields', [
 				[
-					'title:(empty)   title:(!empty)',
-					'A blank or filled-in value. In French, use vide or !vide inside the parentheses.'
+					['title:   title=   title=""   title:=', '!title:   -title:   !title=   title!='],
+					'Empty text on the first line, text other than the empty string on the second.'
 				],
-				['title=""   title=empty', 'Text with zero characters, or the word “empty” itself.'],
-				['added!=?   added:?', 'A blank or filled-in date.']
+				[
+					['title:empty   title:!empty', 'score:empty   score:!empty'],
+					'Empty or populated. For an optional number, this checks for NULL.'
+				],
+				['score!=10 | score:empty', 'A score other than 10 or missing. Comparisons alone omit NULL values.'],
+				[
+					['director:empty   !director:empty', 'director:Jean'],
+					'Missing or present link. A value searches the representative fields, here surname and first name.'
+				],
+				['added:empty   added:!?   added:?', 'The first two find empty dates. The third finds populated dates.']
 			]],
 			['Combine and quote conditions', [
-				['title:Alien | title:Predator', 'Either one. The comma and | mean OR.'],
-				['title:Alien score>=10', 'Both at once. A space, & or + means AND and is applied before OR.'],
+				[['title:Alien | title:Predator', 'title:(Alien, Predator)'], 'Either one. The comma and | mean OR.'],
+				[
+					['title:Alien score>=10', 'title:Alien & score>=10', 'title:Alien + score>=10'],
+					'A space, & or + means AND. AND takes precedence over OR.'
+				],
 				[
 					'(title:Alien | title:Predator) score>=10',
-					'Parentheses group the choices. Here, either title prefix with a score of at least 10.'
+					'Parentheses group the title choices before the score is checked.'
 				],
 				[
-					['title:"Rock & Roll"', "'watch count'>=8"],
-					'Single or double quotes surround fields and values with spaces or signs used to combine conditions.'
-				],
-				[
-					[String.raw`title:"The \"Great\" Escape"`, String.raw`title:"A\\B"`],
-					'Inside quotes, a backslash protects the matching quote and \\. Inside field:(...), use the column'
-					+ ' rules.'
+					['title:"Rock & Roll"', String.raw`title:"The \"Great\" Escape"`],
+					'Quote spaces and grouping signs. Within double quotes, \\ escapes " and \\.'
 				]
+			]]
+		],
+		minimal: [
+			['Enter and compare values', [
+				['title:Alien', 'The title starts with “Alien”.'],
+				['title=Alien', 'The whole title is “Alien”.'],
+				['!title:Alien', 'The title does not start with “Alien”.'],
+				['!title=Alien', 'The whole title differs from “Alien”.'],
+				['score>=10', 'The score is at least 10, including 10.'],
+				['"watch count">=8', 'Quote a field name containing spaces.'],
+				['studio.name:Fox', 'Search by the studio name, a field on the related object.']
+			]],
+			['Use wildcards', [
+				['title:*Alien*', '“Alien” anywhere in the title. An asterisk matches zero or more characters.'],
+				['title:A?B', 'Exactly one character between A and B, for example A1B.']
+			]],
+			['Search for a range or date', [
+				['score:10-20', 'From 10 to 20 inclusive.'],
+				['added:03/2020', 'All of March 2020.'],
+				['added:09/03/2020', '9 March 2020 (day/month/year).'],
+				['added:01/03/2020-09/03/2020', 'From 1 through 9 March 2020.'],
+				['added:2020-2022', 'From 2020 through 2022.']
+			]],
+			['Find empty or populated fields', [
+				['title=', 'The title is an empty string.'],
+				['!title=', 'The title contains at least one character.'],
+				['score:empty', 'The optional score is missing. Use empty for a date or link too.'],
+				['!score:empty', 'The score is populated.'],
+				['score!=10 or score:empty', 'The score differs from 10 or is missing.']
+			]],
+			['Combine and quote conditions', [
+				['title:Alien or title:Predator', 'Either title prefix.'],
+				['title:Alien and score>=10', 'Both conditions.'],
+				[
+					['(title:Alien or title:Predator) and score>=10', 'title:Alien,Predator and score>=10'],
+					'Same result. The score applies to both titles.'
+				],
+				['title:"Rock & Roll"', 'Double quotes keep the spaces and & inside the title you search for.']
 			]]
 		]
 	}
@@ -174,12 +247,16 @@ const sheets = {
 const basename    = 'search-filter-cheatsheet'
 const packageName = '@itrocks/list-filter'
 
-const pageSize   = [595.28, 841.89]
-const margin     = 36
-const inputWidth = 242
-const lineHeight = 11.5
-const textSize   = 9.75
-const codeSize   = 9.55
+const pageSize = [595.28, 841.89]
+const margin   = 36
+const layouts  = {
+	full:    { codeSize: 9.25, inputWidth: 247, lineHeight: 10.8, rowGap: 2.6, sectionGap: 14, textSize: 9.5 },
+	minimal: { codeSize: 10.1, inputWidth: 282, lineHeight: 12.8, rowGap: 4.6, sectionGap: 18, textSize: 10.6 }
+}
+const edition = {
+	en: { full: 'Complete reference', minimal: 'Essentials' },
+	fr: { full: 'Fiche complète', minimal: 'L’essentiel' }
+}
 const ink        = rgb(0.12, 0.19, 0.20)
 const accent     = rgb(0.05, 0.32, 0.29)
 const rule       = rgb(0.82, 0.86, 0.85)
@@ -202,7 +279,29 @@ function wrap(text, font, size, width)
 	return [...lines, line]
 }
 
-function drawExample(page, example, x, y, fonts)
+function wrapSentences(text, font, size, width, segmenter, separate)
+{
+	if (separate) {
+		return Array.from(segmenter.segment(text))
+			.flatMap(({ segment }) => wrap(segment.trim(), font, size, width))
+	}
+
+	const lines = []
+	let rest    = wrap(text, font, size, width)
+	let start   = 0
+	for (const { index } of segmenter.segment(text)) {
+		if (!index) continue
+		const before = wrap(text.slice(start, index).trim(), font, size, width)
+		const after  = wrap(text.slice(index).trimStart(), font, size, width)
+		if (before.length + after.length > rest.length) continue
+		lines.push(...before)
+		rest  = after
+		start = index
+	}
+	return [...lines, ...rest]
+}
+
+function drawExample(page, example, x, y, fonts, { codeSize, inputWidth })
 {
 	const runs = example.split(/(≠)/).filter(Boolean).map(text => ({
 		font: text === '≠' ? fonts.symbol : fonts.code,
@@ -215,11 +314,12 @@ function drawExample(page, example, x, y, fonts)
 	if (x > margin + inputWidth) throw new Error(`Example is too wide: ${example}`)
 }
 
-async function render(language, sheet)
+async function render(language, sheet, variant)
 {
 	const pdf = await PDFDocument.create({ updateMetadata: false })
+	const segmenter = new Intl.Segmenter(language, { granularity: 'sentence' })
 	pdf.setLanguage(language)
-	pdf.setTitle(sheet.title)
+	pdf.setTitle(sheet.title + ' - ' + edition[language][variant])
 
 	const fonts = {
 		body:   await pdf.embedFont(StandardFonts.Helvetica),
@@ -227,19 +327,20 @@ async function render(language, sheet)
 		code:   await pdf.embedFont(StandardFonts.Courier),
 		symbol: await pdf.embedFont(StandardFonts.Symbol)
 	}
-	const page  = pdf.addPage(pageSize)
-	const width = page.getWidth() - 2 * margin
-	const bodyX = margin + inputWidth + 9
-	let   y     = page.getHeight() - 62
-	page.drawText(sheet.title, { x: margin, y, font: fonts.bold, size: 28, color: ink })
+	const page   = pdf.addPage(pageSize)
+	const layout = layouts[variant]
+	const { inputWidth, lineHeight, rowGap, sectionGap, textSize } = layout
+	const width  = page.getWidth() - 2 * margin
+	const bodyX  = margin + inputWidth + 9
+	let   y      = page.getHeight() - 46
+	page.drawText(sheet.title, { x: margin, y, font: fonts.bold, size: 26, color: ink })
 
-	y -= 25
-	for (const paragraph of sheet.intro) {
-		for (const line of wrap(paragraph, fonts.body, 11, width)) {
-			page.drawText(line, { x: margin, y, font: fonts.body, size: 11, color: ink })
-			y -= 14
-		}
-		y -= 3
+	y -= 19
+	page.drawText(edition[language][variant], { x: margin, y, font: fonts.bold, size: 11, color: accent })
+	y -= 17
+	for (const line of wrap(sheet.intro, fonts.body, 10.5, width)) {
+		page.drawText(line, { x: margin, y, font: fonts.body, size: 10.5, color: ink })
+		y -= 13
 	}
 
 	y -= 7
@@ -248,36 +349,41 @@ async function render(language, sheet)
 	page.drawText(sheet.labels[1], { x: bodyX, y: y - 2, font: fonts.bold, size: 9, color: accent })
 	y -= 12
 
-	for (const [heading, rows] of sheet.sections) {
-		y -= 16
+	for (const [heading, rows] of sheet[variant]) {
+		y -= sectionGap
 		page.drawText(heading, { x: margin, y, font: fonts.bold, size: 12, color: accent })
 		y -= 4
 
 		for (const [examples, explanation] of rows) {
 			const code = Array.isArray(examples) ? examples : [examples]
-			const body = wrap(explanation, fonts.body, textSize, width - inputWidth - 9)
+			const body = wrapSentences(
+				explanation, fonts.body, textSize, width - inputWidth - 9, segmenter, variant === 'minimal'
+			)
 			page.drawLine({
 				start: { x: margin, y },
 				end: { x: margin + width, y },
 				thickness: 0.45,
 				color: rule
 			})
-			code.forEach((line, index) => drawExample(page, line, margin + 7, y - 12 - index * lineHeight, fonts))
+			code.forEach((line, index) => drawExample(page, line, margin + 7, y - 11 - index * lineHeight, fonts, layout))
 			body.forEach((line, index) => page.drawText(line, {
-				x: bodyX, y: y - 12 - index * lineHeight, font: fonts.body, size: textSize, color: ink
+				x: bodyX, y: y - 11 - index * lineHeight, font: fonts.body, size: textSize, color: ink
 			}))
-			y -= Math.max(code.length, body.length) * lineHeight + 4
+			y -= Math.max(code.length, body.length) * lineHeight + rowGap
 		}
 	}
 
-	if (y < 45) throw new Error(`Content exceeds one A4 page: ${language} (${y.toFixed(1)} pt)`)
+	if (y < 45) throw new Error(`Content exceeds one A4 page: ${language}/${variant} (${y.toFixed(1)} pt)`)
 	page.drawText(packageName, { x: margin, y: 24, font: fonts.body, size: 8, color: accent })
 
-	const filename = join(__dirname, `${basename}.${language}.pdf`)
+	const suffix   = variant === 'minimal' ? '.minimal' : ''
+	const filename = join(__dirname, `${basename}${suffix}.${language}.pdf`)
 	await writeFile(filename, await pdf.save())
 }
 
-Promise.all(Object.entries(sheets).map(([language, sheet]) => render(language, sheet)))
+Promise.all(Object.entries(sheets).flatMap(([language, sheet]) =>
+	Object.keys(layouts).map(variant => render(language, sheet, variant))
+))
 	.catch(error => {
 		console.error(error.message)
 		process.exitCode = 1

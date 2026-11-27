@@ -9,3 +9,4 @@
 *.map
 
 !test/fixtures/*.d.ts
+!test/fixtures/search-director.js

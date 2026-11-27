@@ -1,12 +1,14 @@
 
-export type Operator = ':' | '=' | '!=' | '<' | '<=' | '>' | '>='
+export type Operator = ':' | '=' | '!' | '!=' | '<' | '<=' | '>' | '>='
 
 export type Criterion = {
 	column?: string
+	columnSyntax?: true
 	end: number
 	field: string
 	fieldEnd: number
 	fieldStart: number
+	implicitEmpty?: true
 	operator: Operator
 	separatorEnd: number
 	start: number
@@ -15,7 +17,9 @@ export type Criterion = {
 	valueStart: number
 }
 
-type CriterionHead = Pick<Criterion, 'field' | 'fieldEnd' | 'fieldStart' | 'operator' | 'separatorEnd' | 'start'>
+type CriterionHead = Omit<Criterion, 'column' | 'end' | 'value' | 'valueEnd' | 'valueStart'>
+type LogicalOperator = 'AND' | 'OR'
+type LogicalWords = Record<LogicalOperator, string>
 type Quote = '"' | "'"
 
 export type SearchNode = Criterion | {
@@ -37,12 +41,19 @@ const andOperator    = /^[&+]/
 const columnOperator = /^[&+|,]/
 const comparison     = /^(?:!=|<>|[<>]=?|[=≠])/
 const fieldPart      = /^[$_\p{ID_Start}][$\u200c\u200d\p{ID_Continue}]*/u
-const legacyWord     = /^[^"\s]+/
-const negative       = /^(?:!=|<>|[!-])/
+const negative       = /^[!-]/
 const orOperator     = /^[|,]/
 const separator      = /^(?:!=|<>|[<>]=?|[:=≠])/
 const spaces         = /^\s+/
+const wordOperator   = /^\p{L}[\p{L}\p{M}]*(?=[\s(]|$)(?!\s+(?:[:<>=≠]|!=))/u
 const word           = /^[^"\s&+|,()]+/
+
+const englishWords: LogicalWords = { AND: 'and', OR: 'or' }
+const wordsByLocale = new Map<string, LogicalWords>()
+
+const oppositeOperator: Record<Operator, Operator> = {
+	':': '!', '=': '!=', '!': ':', '!=': '=', '<': '>=', '<=': '>', '>': '<=', '>=': '<'
+}
 
 function combine(operator: 'AND' | 'OR', operands: SearchNode[]): SearchNode
 {
@@ -61,15 +72,41 @@ export function formatSearchField(field: string, original = ''): string
 	return quote + escaped + quote
 }
 
+export function formatLogicalSeparator(separator: string, left: string, right: string, translated?: string): string
+{
+	const match = /^(\s*)(\p{L}[\p{L}\p{M}]*)(\s*)$/u.exec(separator)
+	if (!match) return separator
+
+	const [, before, original, after] = match
+	const word = translated && (original === original.toUpperCase() ? translated.toUpperCase() : translated)
+	return (before || (left.endsWith(')') ? '' : ' ')) + (word ?? original)
+		+ (after || (right.startsWith('(') ? '' : ' '))
+}
+
 function operatorOf(symbol: string): Operator
 {
-	if (['!', '!=', '<>', '≠'].includes(symbol)) return '!='
+	if (symbol === '<>' || symbol === '≠') return '!='
 	return symbol as Operator
 }
 
-export function parseSearch(text: string, legacy = false): SearchSyntax
+export function logicalWords(locale: string): LogicalWords
 {
-	return new Parser(text, legacy).parse()
+	const cached = wordsByLocale.get(locale)
+	if (cached) return cached
+
+	const word = (type: 'conjunction' | 'disjunction', fallback: string) => {
+		const parts = new Intl.ListFormat(locale, { type }).formatToParts(['A', 'B'])
+		const label = parts.find(part => part.type === 'literal')?.value.trim().toLowerCase() ?? ''
+		return /^\p{L}[\p{L}\p{M}]*$/u.test(label) ? label : fallback
+	}
+	const words = { AND: word('conjunction', 'and'), OR: word('disjunction', 'or') }
+	wordsByLocale.set(locale, words)
+	return words
+}
+
+export function parseSearch(text: string, locale = 'en'): SearchSyntax
+{
+	return new Parser(text, locale === 'en' ? englishWords : logicalWords(locale)).parse()
 }
 
 class Parser
@@ -79,7 +116,15 @@ class Parser
 	private failed = false
 	private position = 0
 
-	constructor(private readonly text: string, private readonly legacy: boolean) {}
+	constructor(
+		private readonly text: string,
+		private readonly words: LogicalWords
+	) {}
+
+	private atCriterionBoundary(): boolean
+	{
+		return this.position === this.text.length || /[|,&+)]/.test(this.text[this.position])
+	}
 
 	private and(): SearchNode | undefined
 	{
@@ -127,6 +172,44 @@ class Parser
 		return !quoted && (start < this.position)
 	}
 
+	private compactAlternative(): boolean
+	{
+		const end = this.position
+		if (!'|,'.includes(this.text[end] ?? ' ')) return false
+
+		this.position ++
+		const start = this.position
+		const explicitCriterion = this.criterionStartsHere()
+		this.position = start
+
+		const value = explicitCriterion ? '' : this.match(word)
+		if (value && !value.startsWith("'") && !value.includes('\\') && this.text[this.position] !== '"') return true
+
+		this.position = end
+		return false
+	}
+
+	private criterionStartsHere(): boolean
+	{
+		this.match(negative)
+		if (!this.field()) return false
+		this.match(spaces)
+		return !!this.match(separator) || this.take('!')
+	}
+
+	private emptyBeforeLogicalWord(): boolean
+	{
+		const start = this.position
+		if (!this.takeLogicalWord('AND') && !this.takeLogicalWord('OR')) return false
+
+		while (this.take('(')) {
+			this.match(spaces)
+		}
+		const hasCriterion = this.criterionStartsHere()
+		this.position      = start
+		return hasCriterion
+	}
+
 	private field(): string
 	{
 		const parts: string[] = []
@@ -162,7 +245,7 @@ class Parser
 			const operand = this.and()
 			if (!operand) break
 			operands.push(operand)
-		} while (!this.failed && !this.legacy && this.match(orOperator))
+		} while (!this.failed && (this.match(orOperator) || this.takeLogicalWord('OR')))
 		return operands.length ? combine('OR', operands) : undefined
 	}
 
@@ -185,7 +268,7 @@ class Parser
 
 	private primary(): SearchNode | undefined
 	{
-		if (this.legacy || this.text[this.position] !== '(') {
+		if (this.text[this.position] !== '(') {
 			const criterion = this.readCriterion()
 			this.failed = !criterion
 			return criterion
@@ -221,36 +304,36 @@ class Parser
 	private readCriterion(): Criterion | undefined
 	{
 		const start      = this.position
-		const negated    = this.match(negative) !== ''
+		const negated    = !!this.match(negative)
 		const fieldStart = this.position
 		const field      = this.field()
 		const fieldEnd   = this.position
 		if (!field) return
 
-		if (!this.legacy) {
-			this.match(spaces)
-		}
+		this.match(spaces)
 		const separatorStart = this.position
-		const symbol         = this.match(separator)
+		const symbol         = this.match(separator) || this.match(/^!/)
 		const separatorEnd   = this.position
-		if (!symbol) {
-			// A lone ! may be the start of !=.
-			this.take('!')
-			return
-		}
-		if (negated && ![':', '='].includes(symbol)) {
-			this.position = separatorStart
-			return
-		}
-		if (!this.legacy) {
-			this.match(spaces)
-		}
+		if (!symbol) return
+		this.match(spaces)
 
-		const operator = negated ? '!=' as const : operatorOf(symbol)
-		const criterion = { field, fieldEnd, fieldStart, operator, separatorEnd, start }
-		return (!this.legacy && (operator === ':') && this.take('('))
+		let operator = operatorOf(symbol)
+		if (negated) {
+			if (symbol === ':' || symbol === '=' || this.atCriterionBoundary() || this.emptyBeforeLogicalWord()) {
+				operator = oppositeOperator[operator]
+			}
+			else {
+				this.position = separatorStart
+				return
+			}
+		}
+		const columnSyntax = symbol === ':' || symbol === '!'
+			? { columnSyntax: true as const }
+			: {}
+		const criterion    = { ...columnSyntax, field, fieldEnd, fieldStart, operator, separatorEnd, start }
+		return (operator === ':' && this.take('('))
 			? this.readColumn(criterion)
-			: this.readValue(criterion)
+			: this.readValue(criterion, operator === ':' && !negated ? '=' : operator)
 	}
 
 	private readColumn(criterion: CriterionHead): Criterion | undefined
@@ -267,14 +350,21 @@ class Parser
 		return complete ? result : undefined
 	}
 
-	private readValue(criterion: CriterionHead): Criterion | undefined
+	private readValue(criterion: CriterionHead, bareOperator: Operator): Criterion | undefined
 	{
 		let { operator } = criterion
+		let emptyEnd     = criterion.separatorEnd
 		if (operator === ':') {
 			operator = this.valueOperator()
-			if (!this.legacy && operator !== ':') {
+			if (operator !== ':') {
+				emptyEnd = this.position
 				this.match(spaces)
 			}
+		}
+		const beforeLogicalWord = this.emptyBeforeLogicalWord()
+		if (beforeLogicalWord) {
+			// Leave the spaces for the connector so they survive saving and field reordering.
+			this.position = emptyEnd
 		}
 		const quote = this.openQuote()
 		if (quote && (operator === ':')) {
@@ -282,10 +372,26 @@ class Parser
 		}
 
 		const valueStart = this.position
-		const value      = quote ? this.quotedText(quote) : this.match(this.legacy ? legacyWord : word)
+		const value      = quote ? this.quotedText(quote) : this.match(word)
 		const valueEnd   = this.position
-		const complete   = quote ? this.take(quote) : (valueStart !== valueEnd)
-		const result = { ...criterion, end: this.position, operator, value, valueEnd, valueStart }
+		const implicitEmpty = !quote && !value && (beforeLogicalWord || this.atCriterionBoundary())
+		const complete   = quote
+			? this.take(quote)
+			: (valueStart !== valueEnd || implicitEmpty
+				|| (criterion.columnSyntax && criterion.operator !== operator))
+		if (!quote && operator === ':' && value && !value.includes('\\')) {
+			while (this.compactAlternative()) { /* Read adjacent alternatives for this field. */ }
+		}
+		const column = this.position > valueEnd && !quote ? this.text.slice(valueStart, this.position) : undefined
+		const result: Criterion = {
+			...criterion,
+			...(column === undefined ? {} : { column }),
+			end: this.position,
+			...(implicitEmpty ? { implicitEmpty: true, operator: operator === ':' ? bareOperator : operator } : { operator }),
+			value: column ?? value,
+			valueEnd: column === undefined ? valueEnd : this.position,
+			valueStart
+		}
 		this.criteria.push(result)
 		return complete ? result : undefined
 	}
@@ -300,19 +406,38 @@ class Parser
 	private takeAnd(): boolean
 	{
 		const whitespace = this.match(spaces)
-		if (!this.legacy && this.match(andOperator)) {
+		if (this.match(andOperator)) {
 			this.match(spaces)
 			return true
 		}
-		if (!whitespace || (this.position === this.text.length)) return false
-		return this.legacy || !'|,)'.includes(this.text[this.position])
+		if (this.takeLogicalWord('AND')) return true
+		if (this.logicalWord('OR')) return false
+		return !!whitespace && (this.position < this.text.length) && !'|,)'.includes(this.text[this.position])
+	}
+
+	private logicalWord(operator: LogicalOperator): string
+	{
+		if (this.position === 0 || !/[\s)]/.test(this.text[this.position - 1])) return ''
+		const word  = wordOperator.exec(this.text.slice(this.position))?.[0] ?? ''
+		const lower = word.toLowerCase()
+		return lower === englishWords[operator] || lower === this.words[operator] ? word : ''
+	}
+
+	private takeLogicalWord(operator: LogicalOperator): boolean
+	{
+		const word = this.logicalWord(operator)
+		if (!word) return false
+
+		this.position += word.length
+		this.match(spaces)
+		return true
 	}
 
 	private valueOperator(): Operator
 	{
 		const symbol = this.match(comparison)
 		if (symbol) return operatorOf(symbol)
-		return this.take('!') ? '!=' : ':'
+		return this.take('!') ? '!' : ':'
 	}
 
 }

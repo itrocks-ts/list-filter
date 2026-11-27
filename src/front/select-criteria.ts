@@ -3,7 +3,7 @@ import { editorText }  from './text-range.js'
 import { textOffset }  from './text-range.js'
 import { textRange }   from './text-range.js'
 
-function selectAt(editor: HTMLElement, x: number, y: number): boolean
+function selectAt(editor: HTMLElement, x: number, y: number, locale: string): boolean
 {
 	const caret    = document.caretPositionFromPoint?.(x, y)
 	const range    = caret ? null : document.caretRangeFromPoint?.(x, y)
@@ -14,7 +14,7 @@ function selectAt(editor: HTMLElement, x: number, y: number): boolean
 	if (offset === undefined) return false
 
 	const text         = editorText(editor)
-	const { criteria } = parseSearch(text)
+	const { criteria } = parseSearch(text, locale)
 	const index        = criteria.findIndex(({ start, end }) => start <= offset && offset <= end)
 	if (index === -1) return false
 	let { start, end } = criteria[index]
@@ -34,7 +34,7 @@ function selectAt(editor: HTMLElement, x: number, y: number): boolean
 	return true
 }
 
-export function selectCriteria(editor: HTMLElement): void
+export function selectCriteria(editor: HTMLElement, locale: string): void
 {
 	let press: Touch | undefined
 	let selected = false
@@ -47,7 +47,7 @@ export function selectCriteria(editor: HTMLElement): void
 	}
 	editor.addEventListener('click', event => {
 		if (event.detail !== 3) return
-		selectAt(editor, event.clientX, event.clientY)
+		selectAt(editor, event.clientX, event.clientY, locale)
 	})
 	editor.addEventListener('touchstart', event => {
 		cancel()
@@ -55,7 +55,7 @@ export function selectCriteria(editor: HTMLElement): void
 		press = event.touches[0]
 		const { clientX, clientY } = press
 		timer = window.setTimeout(() => {
-			selected = selectAt(editor, clientX, clientY)
+			selected = selectAt(editor, clientX, clientY, locale)
 		}, 450)
 	}, { passive: true })
 	editor.addEventListener('touchmove', event => {

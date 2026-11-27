@@ -77,6 +77,7 @@ function activate(toolbar: HTMLElement): void
 	const trigger   = toolbar.parentElement!.querySelector<HTMLButtonElement>('button.list-filter-icon')!
 	const editLabel = trigger.title
 	const aliases   = new Map<string, string>(JSON.parse(decodeURIComponent(toolbar.dataset.listQueryPaths ?? '[]')))
+	const locale    = toolbar.dataset.searchLocale || 'en'
 	const names     = new Map<string, string>()
 	const editable  = new ContentEditable(editor)
 	const onKeyDown = editable.onKeyDown
@@ -109,16 +110,16 @@ function activate(toolbar: HTMLElement): void
 		editor.focus({ preventScroll: true })
 		placeCaret(editor, editorText(editor).length)
 	})
-	selectCriteria(editor)
+	selectCriteria(editor, locale)
 	for (const [field, path] of aliases) {
 		if (!names.has(path)) {
 			names.set(path, field)
 		}
 	}
-	const columns = new ColumnFilters(form, pathOf, toolbar.dataset.listEmptyAlias, (path, value) => {
+	const columns = new ColumnFilters(form, pathOf, (path, value) => {
 		const text   = editorText(editor)
 		const origin = (columnDraft?.path === path && columnDraft.text === text) ? columnDraft.origin : text
-		const next   = editColumnCriterion(origin, path, names.get(path) ?? path, value, pathOf, toolbar.dataset.listEmptyAlias)
+		const next   = editColumnCriterion(origin, path, names.get(path) ?? path, value, pathOf, locale)
 		columnDraft  = { origin, path, text: next }
 		if (next !== text) {
 			editor.replaceChildren(next, padding)
@@ -128,14 +129,14 @@ function activate(toolbar: HTMLElement): void
 
 	const readSearch = (composing = false) => {
 		const text   = composing ? editorText(editor) : readEditorText(editor, padding)
-		const search = parseSearch(text)
+		const search = parseSearch(text, locale)
 		editor.dataset.filled = String(!!text.trim())
 		editor.setAttribute('aria-invalid', String(search.error !== undefined))
 		highlightSearch(editor, text, search)
 		columns.update(search)
 		return { search, text }
 	}
-	const correction = new FieldCorrection(editor, form.action, (path, field, preferred) => {
+	const correction = new FieldCorrection(editor, form.action, locale, (path, field, preferred) => {
 		aliases.set(field, path)
 		if (preferred) {
 			aliases.set(preferred, path)

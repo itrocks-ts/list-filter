@@ -26,7 +26,7 @@ function matchProperty(properties: readonly PropertyName[], part: string, approx
 	if (exact || !approximate) return exact
 
 	const key = normalise(part)
-	if (!key || properties.some(property => property.aliases.includes(key))) return
+	if (!key || /^[!-]/.test(key) || properties.some(property => property.aliases.includes(key))) return
 
 	const prefixes = properties.filter(property => property.aliases.some(alias => alias.startsWith(key)))
 	if (prefixes.length) return (prefixes.length === 1) ? prefixes[0] : undefined

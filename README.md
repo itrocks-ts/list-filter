@@ -37,43 +37,18 @@ Apply the empty query to refresh the list.
 Named lists save the query with their other settings. On submission, the stored expression uses English property
 paths in alphabetical order. The editor displays fields in the request language and sorts them in that language.
 
-## Syntax
+## Search reference
 
-```text
-query      = AND groups separated by | or ,
-AND group  = terms separated by spaces, & or +
-term       = criterion or a parenthesised query
-criterion  = [negation] field separator value
-negation   = !  -  !=  <>
-separator  = :  =  !=  ≠  <>  >  <  >=  <=
-field      = property name or label, optionally followed by dot-separated segments
-value      = a word or a quoted string
-```
+The general filter combines named fields. The column filter applies the entered expression to one field.
 
-- Use property paths such as `studio.name`, English field labels or labels in the current language.
-  Fields also work when their columns are hidden.
-- Enter a separator to localise a field name or complete a unique prefix. If no prefix matches, spelling correction
-  accepts a unique closest name within one edit for 4–7 characters or two edits for 8 or more.
-- Spaces, `&` and `+` between criteria mean AND. `|` and `,` mean OR. AND takes precedence.
-  Use parentheses to group criteria and quotes when a separator belongs to the value.
-- Spaces around a field separator are optional, as in `title : 1900` or `year >= 1978`.
-- `title:(1900*,Other)` uses the complete column grammar inside the parentheses, including wildcard, range,
-  comparison, grouping and escaped character syntax.
-- Use single or double quotes around a field, path segment or value containing spaces, as in `'nombre de vues'>=8`.
-  Quotes are optional for a single word. Within quotes, a backslash escapes the matching quote or another backslash.
-- `title:1900` matches the start of a title. `title=1900` matches the whole value.
-- `!title:1900`, `-title:1900`, `!=title:1900`, `<>title:1900`, `title!=1900`, `title≠1900`,
-  `title<>1900` and `title:!1900` all mean different from `1900`.
-- With `:`, a leading operator can precede the value, including inside its quotes.
-  For example, `year:>=1970` and `year:">=1970"` are equivalent to `year>=1970`.
-  An explicit operator or negation makes leading symbols part of the value. For example,
-  `title="!A New Hope"` compares the full title including the exclamation mark.
-- An unfinished field, value or quote can be completed in place. The editor marks the first unexpected character
-  in red and gives unexpected whitespace a solid red background.
+See the [search filter guide](docs/search-filter-guide.md) for syntax and examples.
 
 ## API
 
-`parseSearch(text)`, exported from `@itrocks/list-filter/syntax` and the browser subpath `/syntax.js`,
+`parseSearch(text, locale = 'en')`, exported from
+`@itrocks/list-filter/syntax` and the browser subpath `/syntax.js`,
 returns the recognised criteria and their UTF-16 positions in the original text. Each criterion has a
 normalised operator, decoded field and value, and offsets for the whole criterion, field, separator end and value.
+The parser marks criteria written with a colon using `columnSyntax` and keeps grouped column expressions in `column`.
+Pass the editor language as `locale` to recognise its local equivalents of `and` and `or`.
 A result may have an `error` offset or an `incomplete` flag at the end of input.
