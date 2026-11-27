@@ -8,7 +8,7 @@ $search-error-color: #d60024;
 	width: max-content;
 
 	> .list-filter-text[contenteditable] {
-		--search-underline-color: #888;
+		--search-underline-color: var(--list-filter-criterion-color);
 
 		align-content: center;
 		align-self: stretch;
@@ -16,13 +16,16 @@ $search-error-color: #d60024;
 		flex: 1;
 		line-height: 2.25rem;
 		min-height: 1lh;
-		overflow-x: auto;
 		overflow-y: hidden;
 		scrollbar-width: none;
-		white-space: pre;
 
 		&::highlight(list-search-criterion) {
 			text-decoration: underline dotted var(--search-underline-color);
+		}
+
+		&::highlight(list-search-value) {
+			background-color: var(--list-filter-value-background);
+			color: var(--list-filter-value-color);
 		}
 
 		> .list-filter-padding {
@@ -32,7 +35,7 @@ $search-error-color: #d60024;
 		}
 
 		&:focus {
-			--search-underline-color: #12365b;
+			--search-underline-color: var(--list-filter-value-color);
 			outline: none;
 		}
 	}
@@ -41,11 +44,6 @@ $search-error-color: #d60024;
 	> .list-filter-text[contenteditable]:focus > .list-filter-padding {
 		text-decoration: underline dotted var(--search-underline-color);
 	}
-}
-
-::highlight(list-search-value) {
-	background-color: #d5edff;
-	color: #12365b;
 }
 
 ::highlight(list-search-error) {

@@ -75,6 +75,7 @@ function activate(toolbar: HTMLElement): void
 	const query     = form.querySelector<HTMLInputElement>('input[name="listQuery"]')!
 	const submit    = form.querySelector<HTMLInputElement>('.search-submit')!
 	const trigger   = toolbar.parentElement!.querySelector<HTMLButtonElement>('button.list-filter-icon')!
+	const editLabel = trigger.title
 	const aliases   = new Map<string, string>(JSON.parse(decodeURIComponent(toolbar.dataset.listQueryPaths ?? '[]')))
 	const names     = new Map<string, string>()
 	const editable  = new ContentEditable(editor)
@@ -83,9 +84,15 @@ function activate(toolbar: HTMLElement): void
 	let columnDraft:  ColumnDraft | undefined
 	let synchronized = false
 
+	const updateTriggerLabel = () => {
+		const label = document.activeElement === editor ? submit.title : editLabel
+		trigger.title = label
+		trigger.setAttribute('aria-label', label)
+	}
 	editor.enterKeyHint = 'search'
 	padding.textContent = ' '.repeat(6)
 	editor.addEventListener('focus', () => {
+		updateTriggerLabel()
 		const selection = document.getSelection()
 		if (!selection?.isCollapsed || !selection.focusNode) return
 		const caret = textOffset(editor, selection.focusNode, selection.focusOffset)
@@ -94,6 +101,8 @@ function activate(toolbar: HTMLElement): void
 			placeCaret(editor, end)
 		}
 	})
+	editor.addEventListener('blur', updateTriggerLabel)
+	updateTriggerLabel()
 	padding.addEventListener('pointerdown', event => {
 		if (event.button !== 0) return
 		event.preventDefault()
